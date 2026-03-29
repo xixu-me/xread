@@ -23,12 +23,8 @@
       "name": "Debug Stand Alone Crawl",
       "request": "launch",
       "runtimeArgs": [
-        "--env-file=.secret.local",
+        "--env-file=.secret.local"
       ],
-      "env": {
-        "GCLOUD_PROJECT": "reader-6b7dc",
-        "LD_PRELOAD": "/usr/local/lib/libcurl-impersonate-chrome.dylib"
-      },
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/crawl.js",
       "skipFiles": [
@@ -43,34 +39,10 @@
       "name": "Debug Stand Alone Crawl + Browser",
       "request": "launch",
       "runtimeArgs": [
-        "--env-file=.secret.local",
+        "--env-file=.secret.local"
       ],
       "env": {
-        "GCLOUD_PROJECT": "reader-6b7dc",
-        "DEBUG_BROWSER": "true",
-        "LD_PRELOAD": "/usr/local/lib/libcurl-impersonate-chrome.dylib"
-      },
-      "cwd": "${workspaceFolder}",
-      "program": "build/stand-alone/crawl.js",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "type": "node",
-      "outputCapture": "std",
-      "preLaunchTask": "Backend:build:watch",
-      "killBehavior": "forceful"
-    },
-    {
-      "name": "Debug Stand Alone Crawl - EU",
-      "request": "launch",
-      "runtimeArgs": [
-        "--env-file=.secret.local",
-      ],
-      "env": {
-        "GCLOUD_PROJECT": "reader-6b7dc",
-        "FIRESTORE_DATABASE": "reader-eu",
-        "GCP_STORAGE_BUCKET": "reader-eu",
-        "LD_PRELOAD": "/usr/local/lib/libcurl-impersonate-chrome.dylib"
+        "DEBUG_BROWSER": "true"
       },
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/crawl.js",
@@ -86,12 +58,8 @@
       "name": "Debug Stand Alone Search",
       "request": "launch",
       "runtimeArgs": [
-        "--env-file=.secret.local",
+        "--env-file=.secret.local"
       ],
-      "env": {
-        "GCLOUD_PROJECT": "reader-6b7dc",
-        "LD_PRELOAD": "/usr/local/lib/libcurl-impersonate-chrome.dylib"
-      },
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/search.js",
       "skipFiles": [
@@ -106,14 +74,8 @@
       "name": "Debug Stand Alone SERP",
       "request": "launch",
       "runtimeArgs": [
-        "--env-file=.secret.local",
+        "--env-file=.secret.local"
       ],
-      "env": {
-        "GCLOUD_PROJECT": "reader-6b7dc",
-        "PREFERRED_PROXY_COUNTRY": "hk",
-        "OVERRIDE_GOOGLE_DOMAIN": "www.google.com.hk",
-        "LD_PRELOAD": "/usr/local/lib/libcurl-impersonate-chrome.dylib"
-      },
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/serp.js",
       "skipFiles": [
@@ -123,6 +85,6 @@
       "outputCapture": "std",
       "preLaunchTask": "Backend:build:watch",
       "killBehavior": "forceful"
-    },
+    }
   ]
 }
