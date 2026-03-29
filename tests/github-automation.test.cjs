@@ -82,6 +82,9 @@ test('dependabot auto-merge workflow updates stale branches before enabling auto
 
   assert.match(workflow, /gh pr update-branch/);
   assert.match(workflow, /mergeStateStatus/);
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows:\s*\n\s*- CI/);
+  assert.match(workflow, /gh pr list/);
 });
 
 test('Dockerfile is self-contained and no longer relies on curl-impersonate', () => {
