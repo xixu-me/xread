@@ -37,6 +37,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Prepare licensed assets
+        run: node ./scripts/prepare-licensed-assets.cjs
+
       - name: Derive image name
         id: vars
         run: echo "image_name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
