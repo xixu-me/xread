@@ -21,15 +21,7 @@ test('default build script uses standard TypeScript compiler', () => {
 });
 
 test('project type-check build passes with tsc', () => {
-  const tscJsPath = path.join(
-    projectRoot,
-    '.codex-cache',
-    'ts-compiler',
-    'node_modules',
-    'typescript',
-    'lib',
-    'tsc.js',
-  );
+  const tscJsPath = path.join(projectRoot, 'node_modules', 'typescript', 'lib', 'tsc.js');
   const result = spawnSync(
     process.execPath,
     [tscJsPath, '-p', '.', '--pretty', 'false'],
