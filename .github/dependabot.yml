@@ -14,6 +14,13 @@ updates:
       - dependencies
     open-pull-requests-limit: 10
     rebase-strategy: auto
+    ignore:
+      - dependency-name: koa
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@types/koa"
+        update-types:
+          - version-update:semver-major
     groups:
       production-dependencies:
         dependency-type: production
@@ -40,6 +47,10 @@ updates:
       - dependencies
       - docker
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
