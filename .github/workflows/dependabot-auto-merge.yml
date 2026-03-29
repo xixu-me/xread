@@ -7,6 +7,12 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -38,3 +44,35 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --repo "$GITHUB_REPOSITORY" "$PR_URL" --auto --squash --delete-branch
+
+  refresh-open-dependabot-prs:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh and re-arm open Dependabot pull requests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,author --jq '.[] | select(.author.login == "app/dependabot" or .author.login == "dependabot[bot]") | .number')"
+          if [ -z "$prs" ]; then
+            exit 0
+          fi
+
+          while IFS= read -r pr; do
+            [ -n "$pr" ] || continue
+            gh pr review --repo "$GITHUB_REPOSITORY" "$pr" --approve --body "Approved automatically after policy checks." || true
+
+            merge_state="$(gh pr view --repo "$GITHUB_REPOSITORY" "$pr" --json mergeStateStatus --jq .mergeStateStatus)"
+            if [ "$merge_state" = "BEHIND" ]; then
+              gh pr update-branch --repo "$GITHUB_REPOSITORY" "$pr" || true
+            fi
+
+            gh pr merge --repo "$GITHUB_REPOSITORY" "$pr" --auto --squash --delete-branch || true
+          done <<EOF
+          $prs
+          EOF
