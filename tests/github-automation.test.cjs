@@ -53,6 +53,14 @@ test('dependabot config covers npm, docker, and github-actions updates', () => {
   assert.match(dependabot, /package-ecosystem: github-actions/);
 });
 
+test('dependabot ignores unsupported major upgrades for koa and docker base images', () => {
+  const dependabot = read('.github/dependabot.yml');
+
+  assert.match(dependabot, /dependency-name:\s*koa/);
+  assert.match(dependabot, /update-types:\s*\n\s*- version-update:semver-major/);
+  assert.match(dependabot, /dependency-name:\s*node/);
+});
+
 test('CI workflow runs lint before tests and build', () => {
   const workflow = read('.github/workflows/ci.yml');
 
@@ -67,6 +75,13 @@ test('CI validates Docker builds for pull requests without publishing images', (
   assert.match(workflow, /name: Validate container build/);
   assert.match(workflow, /if: github\.event_name == 'pull_request'/);
   assert.match(workflow, /push: false/);
+});
+
+test('dependabot auto-merge workflow updates stale branches before enabling auto-merge', () => {
+  const workflow = read('.github/workflows/dependabot-auto-merge.yml');
+
+  assert.match(workflow, /gh pr update-branch/);
+  assert.match(workflow, /mergeStateStatus/);
 });
 
 test('Dockerfile is self-contained and no longer relies on curl-impersonate', () => {
