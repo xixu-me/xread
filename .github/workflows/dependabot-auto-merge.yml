@@ -23,6 +23,16 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr review --repo "$GITHUB_REPOSITORY" "$PR_URL" --approve --body "Approved automatically after policy checks." || true
 
+      - name: Update stale Dependabot branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          merge_state="$(gh pr view --repo "$GITHUB_REPOSITORY" "$PR_URL" --json mergeStateStatus --jq .mergeStateStatus)"
+          if [ "$merge_state" = "BEHIND" ]; then
+            gh pr update-branch --repo "$GITHUB_REPOSITORY" "$PR_URL"
+          fi
+
       - name: Enable auto-merge after required checks pass
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
