@@ -37,6 +37,14 @@ test('container image workflow publishes to GHCR instead of legacy GCP registrie
   assert.doesNotMatch(workflow, /gcloud|us-docker\.pkg\.dev/);
 });
 
+test('container image publishing waits for CI instead of running on pull requests directly', () => {
+  const workflow = read('.github/workflows/image.yml');
+
+  assert.match(workflow, /workflow_run:/);
+  assert.match(workflow, /workflows:\s*\n\s*- CI/);
+  assert.doesNotMatch(workflow, /pull_request:/);
+});
+
 test('dependabot config covers npm, docker, and github-actions updates', () => {
   const dependabot = read('.github/dependabot.yml');
 
@@ -51,6 +59,14 @@ test('CI workflow runs lint before tests and build', () => {
   assert.match(workflow, /run: npm run lint/);
   assert.match(workflow, /run: npm run test:ci/);
   assert.match(workflow, /run: npm run build/);
+});
+
+test('CI validates Docker builds for pull requests without publishing images', () => {
+  const workflow = read('.github/workflows/ci.yml');
+
+  assert.match(workflow, /name: Validate container build/);
+  assert.match(workflow, /if: github\.event_name == 'pull_request'/);
+  assert.match(workflow, /push: false/);
 });
 
 test('Dockerfile is self-contained and no longer relies on curl-impersonate', () => {
