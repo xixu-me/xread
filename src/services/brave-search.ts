@@ -42,7 +42,7 @@ export class BraveSearchService extends AsyncService {
             if (geoip?.city) {
                 extraHeaders['X-Loc-City'] = encodeURIComponent(geoip.city);
             }
-            if (geoip?.country) {
+            if (geoip?.country?.code) {
                 extraHeaders['X-Loc-Country'] = geoip.country.code;
             }
             if (geoip?.timezone) {
@@ -58,7 +58,7 @@ export class BraveSearchService extends AsyncService {
             }
         }
         if (this.threadLocal.get('userAgent')) {
-            extraHeaders['User-Agent'] = this.threadLocal.get('userAgent');
+            extraHeaders['User-Agent'] = `${this.threadLocal.get('userAgent')}`;
         }
 
         const encoded = { ...query };

@@ -8,7 +8,7 @@ import { GoogleAuth } from 'google-auth-library';
  * @return {Promise<string>} The URL of the function
  */
 export async function getFunctionUrl(name: string, location = "us-central1") {
-    const projectId = `reader-6b7dc`;
+    const projectId = `xread-project`;
     const url = "https://cloudfunctions.googleapis.com/v2beta/" +
         `projects/${projectId}/locations/${location}/functions/${name}`;
     const auth = new GoogleAuth({

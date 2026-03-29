@@ -15,7 +15,7 @@ export const InjectProperty = propertyInjectorFactory(container);
 @singleton()
 export class RPCRegistry extends KoaRPCRegistry {
 
-    title = 'Jina Reader API';
+    title = 'Xread API';
     container = container;
     logger = this.globalLogger.child({ service: this.constructor.name });
     static override envelope = IntegrityEnvelope;

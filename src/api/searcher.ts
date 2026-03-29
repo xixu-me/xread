@@ -17,20 +17,15 @@ import { GlobalLogger } from '../services/logger';
 import { AsyncLocalContext } from '../services/async-context';
 import { Context, Ctx, Method, Param, RPCReflect } from '../services/registry';
 import { OutputServerEventStream } from '../lib/transform-server-event-stream';
-import { JinaEmbeddingsAuthDTO } from '../dto/jina-embeddings-auth';
-import { InsufficientBalanceError } from '../services/errors';
+import { ApiTokenAccount, AuthDTO } from '../dto/auth';
 
 import { SerperBingSearchService, SerperGoogleSearchService } from '../services/serp/serper';
 import { toAsyncGenerator } from '../utils/misc';
-import type { JinaEmbeddingsTokenAccount } from '../shared/db/jina-embeddings-token-account';
 import { LRUCache } from 'lru-cache';
 import { API_CALL_STATUS } from '../shared/db/api-roll';
 import { SERPResult } from '../db/searched';
-import { SerperSearchQueryParams, WORLD_COUNTRIES, WORLD_LANGUAGES } from '../shared/3rd-party/serper-search';
-import { InternalJinaSerpService } from '../services/serp/internal';
+import { SerperSearchQueryParams } from '../shared/3rd-party/serper-search';
 import { WebSearchEntry } from '../services/serp/compat';
-
-const WORLD_COUNTRY_CODES = Object.keys(WORLD_COUNTRIES).map((x) => x.toLowerCase());
 
 interface FormattedPage extends RealFormattedPage {
     favicon?: string;
@@ -39,7 +34,7 @@ interface FormattedPage extends RealFormattedPage {
 
 type RateLimitCache = {
     blockedUntil?: Date;
-    user?: JinaEmbeddingsTokenAccount;
+    user?: ApiTokenAccount;
 };
 
 @singleton()
@@ -71,7 +66,6 @@ export class SearcherHost extends RPCHost {
         protected snapshotFormatter: SnapshotFormatter,
         protected serperGoogle: SerperGoogleSearchService,
         protected serperBing: SerperBingSearchService,
-        protected jinaSerp: InternalJinaSerpService,
     ) {
         super(...arguments);
 
@@ -126,7 +120,7 @@ export class SearcherHost extends RPCHost {
     async search(
         @RPCReflect() rpcReflect: RPCReflection,
         @Ctx() ctx: Context,
-        auth: JinaEmbeddingsAuthDTO,
+        auth: AuthDTO,
         crawlerOptions: CrawlerOptions,
         searchExplicitOperators: GoogleSearchExplicitOperatorsDto,
         @Param('count', { validate: (v: number) => v >= 0 && v <= 20 })
@@ -137,8 +131,8 @@ export class SearcherHost extends RPCHost {
         searchEngine: 'google' | 'bing',
         @Param('num', { validate: (v: number) => v >= 0 && v <= 20 })
         num?: number,
-        @Param('gl', { validate: (v: string) => WORLD_COUNTRY_CODES.includes(v?.toLowerCase()) }) gl?: string,
-        @Param('hl', { validate: (v: string) => WORLD_LANGUAGES.some(l => l.code === v) }) hl?: string,
+        @Param('gl', { validate: (v: string) => /^[a-z]{2}$/i.test(v || '') }) gl?: string,
+        @Param('hl', { validate: (v: string) => /^[a-z]{2}$/i.test(v || '') }) hl?: string,
         @Param('location') location?: string,
         @Param('page') page?: number,
         @Param('fallback', { type: Boolean, default: true }) fallback?: boolean,
@@ -168,9 +162,6 @@ export class SearcherHost extends RPCHost {
         const noSlashPath = decodeURIComponent(ctx.path).slice(1);
         if (!noSlashPath && !q) {
             const index = await this.crawler.getIndex(auth);
-            if (!uid) {
-                index.note = 'Authentication is required to use this endpoint. Please provide a valid API key via Authorization header.';
-            }
             if (!ctx.accepts('text/plain') && (ctx.accepts('text/json') || ctx.accepts('application/json'))) {
 
                 return index;
@@ -182,9 +173,6 @@ export class SearcherHost extends RPCHost {
         }
 
         const user = await auth.assertUser();
-        if (!(user.wallet.total_balance > 0)) {
-            throw new InsufficientBalanceError(`Account balance not enough to run this query, please recharge.`);
-        }
 
         if (highFreqKey?.blockedUntil) {
             const now = new Date();
@@ -209,12 +197,17 @@ export class SearcherHost extends RPCHost {
                 })
         ];
 
-        const apiRollPromise = this.rateLimitControl.simpleRPCUidBasedLimit(
-            rpcReflect, uid!, [rpcReflect.name.toUpperCase()],
-            ...rateLimitPolicy
-        );
+        const apiRollPromise = uid ?
+            this.rateLimitControl.simpleRPCUidBasedLimit(
+                rpcReflect, uid, [rpcReflect.name.toUpperCase()],
+                ...rateLimitPolicy
+            ) :
+            this.rateLimitControl.simpleRpcIPBasedLimit(
+                rpcReflect, ctx.ip || 'anonymous', [rpcReflect.name.toUpperCase()],
+                [[new Date(Date.now() - 60 * 1000), 20]]
+            );
 
-        if (!highFreqKey) {
+        if (uid && !highFreqKey) {
             // Normal path
             await apiRollPromise;
 
@@ -233,7 +226,7 @@ export class SearcherHost extends RPCHost {
                 });
             }
 
-        } else {
+        } else if (uid && highFreqKey) {
             // High freq key path
             apiRollPromise.then(
                 // Rate limit not triggered, make sure not blocking.
@@ -274,12 +267,15 @@ export class SearcherHost extends RPCHost {
 
         rpcReflect.finally(async () => {
             if (chargeAmount) {
-                auth.reportUsage(chargeAmount, `reader-${rpcReflect.name}`).catch((err) => {
-                    this.logger.warn(`Unable to report usage for ${uid}`, { err: marshalErrorLike(err) });
-                });
+                if (uid) {
+                    auth.reportUsage(chargeAmount, `xread-${rpcReflect.name}`).catch((err) => {
+                        this.logger.warn(`Unable to report usage for ${uid}`, { err: marshalErrorLike(err) });
+                    });
+                }
                 try {
                     const apiRoll = await apiRollPromise;
                     apiRoll.chargeAmount = chargeAmount;
+                    await apiRoll.save({ merge: true });
 
                 } catch (err) {
                     await this.rateLimitControl.record({
@@ -715,26 +711,25 @@ export class SearcherHost extends RPCHost {
         }
     }
 
-    *iterProviders(preference?: string, variant?: string) {
+    *iterProviders(preference?: string, _variant?: string) {
         if (preference === 'bing') {
             yield this.serperBing;
-            yield variant === 'web' ? this.jinaSerp : this.serperGoogle;
+            yield this.serperGoogle;
             yield this.serperGoogle;
 
             return;
         }
 
         if (preference === 'google') {
-            yield variant === 'web' ? this.jinaSerp : this.serperGoogle;
             yield this.serperGoogle;
             yield this.serperGoogle;
 
             return;
         }
 
-        yield variant === 'web' ? this.jinaSerp : this.serperGoogle;
         yield this.serperGoogle;
         yield this.serperGoogle;
+        yield this.serperBing;
     }
 
     async cachedSearch(variant: 'web' | 'news' | 'images', query: Record<string, any>, noCache?: boolean): Promise<WebSearchEntry[]> {

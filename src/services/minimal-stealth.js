@@ -497,7 +497,7 @@ export function minimalStealth() {
         }
         return (Object.fromEntries || fromEntries)(
             Object.entries(fnObj)
-                .filter(([key, value]) => typeof value === 'function')
+                .filter(([, value]) => typeof value === 'function')
                 .map(([key, value]) => [key, value.toString()]) // eslint-disable-line no-eval
         );
     };
@@ -526,7 +526,7 @@ export function minimalStealth() {
     utils.makeHandler = () => ({
         // Used by simple `navigator` getter evasions
         getterValue: value => ({
-            apply(target, ctx, args) {
+            apply(_target, _ctx, _args) {
                 // Let's fetch the value first, to trigger and escalate potential errors
                 // Illegal invocations like `navigator.__proto__.vendor` will throw here
                 utils.cache.Reflect.apply(...arguments);

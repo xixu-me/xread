@@ -341,7 +341,7 @@ export class JSDomControl extends AsyncService {
         return final;
     }
 
-    snippetToElement(snippet?: string, url?: string) {
+    snippetToElement(snippet?: string, _url?: string) {
         const parsed = this.linkedom.parseHTML(snippet || '<html><body></body></html>');
 
         // Hack for turndown gfm table plugin.

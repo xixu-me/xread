@@ -43,7 +43,7 @@ import {
 import { countGPTToken as estimateToken } from '../shared/utils/openai';
 import { ProxyProviderService } from '../shared/services/proxy-provider';
 import { FirebaseStorageBucketControl } from '../shared/services/firebase-storage-bucket';
-import { JinaEmbeddingsAuthDTO } from '../dto/jina-embeddings-auth';
+import { AuthDTO } from '../dto/auth';
 import { RobotsTxtService } from '../services/robots-text';
 import { TempFileManager } from '../services/temp-file';
 import { MiscService } from '../services/misc';
@@ -187,12 +187,12 @@ export class CrawlerHost extends RPCHost {
         this.emit('ready');
     }
 
-    async getIndex(auth?: JinaEmbeddingsAuthDTO) {
+    async getIndex(auth?: AuthDTO) {
         const indexObject: Record<string, string | number | undefined> = Object.create(indexProto);
         Object.assign(indexObject, {
-            usage1: 'https://r.jina.ai/YOUR_URL',
-            usage2: 'https://s.jina.ai/YOUR_SEARCH_QUERY',
-            homepage: 'https://jina.ai/reader',
+            usage1: 'https://r.example.com/YOUR_URL',
+            usage2: 'https://s.example.com/YOUR_SEARCH_QUERY',
+            homepage: 'https://example.com/xread',
         });
 
         await auth?.solveUID();
@@ -217,7 +217,7 @@ export class CrawlerHost extends RPCHost {
         tags: ['misc', 'crawl'],
         returnType: [String, Object],
     })
-    async getIndexCtrl(@Ctx() ctx: Context, @Param({ required: false }) auth?: JinaEmbeddingsAuthDTO) {
+    async getIndexCtrl(@Ctx() ctx: Context, @Param({ required: false }) auth?: AuthDTO) {
         const indexObject = await this.getIndex(auth);
 
         if (!ctx.accepts('text/plain') && (ctx.accepts('text/json') || ctx.accepts('application/json'))) {
@@ -256,7 +256,7 @@ export class CrawlerHost extends RPCHost {
     async crawl(
         @RPCReflect() rpcReflect: RPCReflection,
         @Ctx() ctx: Context,
-        auth: JinaEmbeddingsAuthDTO,
+        auth: AuthDTO,
         crawlerOptionsHeaderOnly: CrawlerOptionsHeaderOnly,
         crawlerOptionsParamsAllowed: CrawlerOptions,
     ) {
@@ -304,7 +304,7 @@ export class CrawlerHost extends RPCHost {
                     return;
                 }
                 if (chargeAmount) {
-                    auth.reportUsage(chargeAmount, `reader-crawl`).catch((err) => {
+                    auth.reportUsage(chargeAmount, `xread-crawl`).catch((err) => {
                         this.logger.warn(`Unable to report usage for ${uid}`, { err: marshalErrorLike(err) });
                     });
                     apiRoll.chargeAmount = chargeAmount;
@@ -678,7 +678,7 @@ export class CrawlerHost extends RPCHost {
         //     return;
         // }
 
-        if (crawlerOpts?.respondWith.includes(CONTENT_FORMAT.READER_LM)) {
+        if (crawlerOpts?.respondWith.includes(CONTENT_FORMAT.XREAD_LM)) {
             const finalAutoSnapshot = await this.getFinalSnapshot(urlToCrawl, {
                 ...crawlOpts,
                 engine: crawlOpts?.engine || ENGINE_TYPE.AUTO,
@@ -688,21 +688,21 @@ export class CrawlerHost extends RPCHost {
             }));
 
             if (!finalAutoSnapshot?.html) {
-                throw new AssertionFailureError(`Unexpected non HTML content for ReaderLM: ${urlToCrawl}`);
+                throw new AssertionFailureError(`Unexpected non HTML content for XreadLM: ${urlToCrawl}`);
             }
 
             if (crawlerOpts?.instruction || crawlerOpts?.jsonSchema) {
                 const jsonSchema = crawlerOpts.jsonSchema ? JSON.stringify(crawlerOpts.jsonSchema, undefined, 2) : undefined;
-                yield* this.lmControl.readerLMFromSnapshot(crawlerOpts.instruction, jsonSchema, finalAutoSnapshot);
+                yield* this.lmControl.xreadLMFromSnapshot(crawlerOpts.instruction, jsonSchema, finalAutoSnapshot);
 
                 return;
             }
 
             try {
-                yield* this.lmControl.readerLMMarkdownFromSnapshot(finalAutoSnapshot);
+                yield* this.lmControl.xreadLMMarkdownFromSnapshot(finalAutoSnapshot);
             } catch (err) {
                 if (err instanceof HTTPServiceError && err.status === 429) {
-                    throw new ServiceNodeResourceDrainError(`Reader LM is at capacity, please try again later.`);
+                    throw new ServiceNodeResourceDrainError(`Xread LM is at capacity, please try again later.`);
                 }
                 throw err;
             }
@@ -1119,7 +1119,7 @@ export class CrawlerHost extends RPCHost {
         const presumedURL = crawlerOptions.base === 'final' ? new URL(snapshot.href) : nominalUrl;
 
         const respondWith = crawlerOptions.respondWith;
-        if (respondWith === CONTENT_FORMAT.READER_LM || respondWith === CONTENT_FORMAT.VLM) {
+        if (respondWith === CONTENT_FORMAT.XREAD_LM || respondWith === CONTENT_FORMAT.VLM) {
             const output: FormattedPage = {
                 title: snapshot.title,
                 content: snapshot.parsed?.textContent,
@@ -1322,7 +1322,7 @@ export class CrawlerHost extends RPCHost {
         return false;
     }
 
-    async saasAssertTierPolicy(opts: CrawlerOptions, auth: JinaEmbeddingsAuthDTO) {
+    async saasAssertTierPolicy(opts: CrawlerOptions, auth: AuthDTO) {
         let chargeScalar = 1;
         let minimalCharge = 0;
 

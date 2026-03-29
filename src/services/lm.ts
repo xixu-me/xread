@@ -48,7 +48,7 @@ export class LmControl extends AsyncService {
             ],
 
             options: {
-                system: 'You are ReaderLM-v7, a model that generates Markdown source files only. No HTML, notes and chit-chats allowed',
+                system: 'You are XreadLM-v7, a model that generates Markdown source files only. No HTML, notes and chit-chats allowed',
                 stream: true
             }
         });
@@ -69,14 +69,14 @@ export class LmControl extends AsyncService {
         return;
     }
 
-    async* readerLMMarkdownFromSnapshot(snapshot?: PageSnapshot) {
+    async* xreadLMMarkdownFromSnapshot(snapshot?: PageSnapshot) {
         if (!snapshot) {
             throw new AssertionFailureError('Snapshot of the page is not available');
         }
 
         const html = await this.jsdomControl.cleanHTMLforLMs(snapshot.html, 'script,link,style,textarea,select>option,svg');
 
-        const it = this.commonLLM.iterRun('readerlm-v2', {
+        const it = this.commonLLM.iterRun('xreadlm-v2', {
             prompt: `Extract the main content from the given HTML and convert it to Markdown format.\n\n${tripleBackTick}html\n${html}\n${tripleBackTick}\n`,
 
             options: {
@@ -110,14 +110,14 @@ export class LmControl extends AsyncService {
         return;
     }
 
-    async* readerLMFromSnapshot(schema?: string, instruction: string = 'Infer useful information from the HTML and present it in a structured JSON object.', snapshot?: PageSnapshot) {
+    async* xreadLMFromSnapshot(schema?: string, instruction: string = 'Infer useful information from the HTML and present it in a structured JSON object.', snapshot?: PageSnapshot) {
         if (!snapshot) {
             throw new AssertionFailureError('Snapshot of the page is not available');
         }
 
         const html = await this.jsdomControl.cleanHTMLforLMs(snapshot.html, 'script,link,style,textarea,select>option,svg');
 
-        const it = this.commonLLM.iterRun('readerlm-v2', {
+        const it = this.commonLLM.iterRun('xreadlm-v2', {
             prompt: `${instruction}\n\n${tripleBackTick}html\n${html}\n${tripleBackTick}\n${schema ? `The JSON schema:\n${tripleBackTick}json\n${schema}\n${tripleBackTick}\n` : ''}`,
             options: {
                 // system: 'You are an AI assistant developed by VENDOR_NAME',

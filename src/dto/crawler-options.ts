@@ -13,7 +13,7 @@ export enum CONTENT_FORMAT {
     PAGESHOT = 'pageshot',
     SCREENSHOT = 'screenshot',
     VLM = 'vlm',
-    READER_LM = 'readerlm-v2',
+    XREAD_LM = 'xreadlm-v2',
 }
 
 export enum ENGINE_TYPE {
@@ -92,7 +92,7 @@ class Viewport extends AutoCastable {
                         `- screenshot\n` +
                         `- content\n` +
                         `- any combination of the above\n` +
-                        `- readerlm-v2\n` +
+                        `- xreadlm-v2\n` +
                         `- vlm\n\n` +
                         `Default: content\n`
                     ,
@@ -527,9 +527,9 @@ export class CrawlerOptions extends AutoCastable {
         if (instance.engine === 'vlm') {
             instance.engine = ENGINE_TYPE.BROWSER;
             instance.respondWith = CONTENT_FORMAT.VLM;
-        } else if (instance.engine === 'readerlm-v2') {
+        } else if (instance.engine === 'xreadlm-v2') {
             instance.engine = ENGINE_TYPE.AUTO;
-            instance.respondWith = CONTENT_FORMAT.READER_LM;
+            instance.respondWith = CONTENT_FORMAT.XREAD_LM;
         }
 
         const keepImgDataUrl = ctx?.get('x-keep-img-data-url');

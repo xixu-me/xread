@@ -51,7 +51,7 @@ export class AltTextService extends AsyncService {
                 system: `You are BLIP2, an image caption model. You will generate Alt Text (in web pages) for any image for a11y purposes. You must not start with "This image is sth...", instead, start direly with "sth..."${svgSystemHint}`,
             });
 
-            return r.replaceAll(/[\n\"]|(\.\s*$)/g, '').trim();
+            return r.replaceAll(/[\n"]|(\.\s*$)/g, '').trim();
         } catch (err) {
             throw new AssertionFailureError({ message: `Could not generate alt text for url ${url}`, cause: err });
         }

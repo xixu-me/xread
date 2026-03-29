@@ -183,7 +183,7 @@ async function getWebSearchResults() {
 
     const candidates = Array.from(wrapper1.querySelectorAll('div[lang],div[data-surl]'));
 
-    return candidates.map((x, pos) => {
+    return candidates.map((x) => {
         const primaryLink = x.querySelector('a:not([href="#"])');
         if (!primaryLink) {
             return undefined;

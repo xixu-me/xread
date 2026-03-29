@@ -508,7 +508,7 @@ export class SERPSpecializedPuppeteerControl extends AsyncService {
                         const firstReq = curled.chain[0];
 
                         return req.respond({
-                            status: firstReq.result!.code,
+                            status: (firstReq.result as any)!.code,
                             headers: _.omit(firstReq, 'result'),
                         }, 3);
                     } catch (err: any) {

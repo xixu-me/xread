@@ -13,9 +13,8 @@ import { GlobalLogger } from '../services/logger';
 import { AsyncLocalContext } from '../services/async-context';
 import { Context, Ctx, Method, Param, RPCReflect } from '../services/registry';
 import { OutputServerEventStream } from '../lib/transform-server-event-stream';
-import { JinaEmbeddingsAuthDTO } from '../dto/jina-embeddings-auth';
-import { InsufficientBalanceError } from '../services/errors';
-import { WORLD_COUNTRIES, WORLD_LANGUAGES } from '../shared/3rd-party/serper-search';
+import { ApiTokenAccount, AuthDTO } from '../dto/auth';
+import { WORLD_LANGUAGES } from '../shared/3rd-party/serper-search';
 import { GoogleSERP } from '../services/serp/google';
 import { WebSearchEntry } from '../services/serp/compat';
 import { CrawlerOptions } from '../dto/crawler-options';
@@ -23,16 +22,12 @@ import { ScrappingOptions } from '../services/serp/puppeteer';
 import { objHashMd5B64Of } from 'civkit/hash';
 import { SERPResult } from '../db/searched';
 import { SerperBingSearchService, SerperGoogleSearchService } from '../services/serp/serper';
-import type { JinaEmbeddingsTokenAccount } from '../shared/db/jina-embeddings-token-account';
 import { LRUCache } from 'lru-cache';
 import { API_CALL_STATUS } from '../shared/db/api-roll';
-import { InternalJinaSerpService } from '../services/serp/internal';
-
-const WORLD_COUNTRY_CODES = Object.keys(WORLD_COUNTRIES).map((x) => x.toLowerCase());
 
 type RateLimitCache = {
     blockedUntil?: Date;
-    user?: JinaEmbeddingsTokenAccount;
+    user?: ApiTokenAccount;
 };
 
 const indexProto = {
@@ -66,21 +61,19 @@ export class SerpHost extends RPCHost {
 
     batchedCaches: SERPResult[] = [];
 
-    async getIndex(ctx: Context, auth?: JinaEmbeddingsAuthDTO) {
+    async getIndex(ctx: Context, auth?: AuthDTO) {
         const indexObject: Record<string, string | number | undefined> = Object.create(indexProto);
         Object.assign(indexObject, {
-            usage1: 'https://r.jina.ai/YOUR_URL',
-            usage2: 'https://s.jina.ai/YOUR_SEARCH_QUERY',
+            usage1: 'https://r.example.com/YOUR_URL',
+            usage2: 'https://s.example.com/YOUR_SEARCH_QUERY',
             usage3: `${ctx.origin}/?q=YOUR_SEARCH_QUERY`,
-            homepage: 'https://jina.ai/reader',
+            homepage: 'https://example.com/xread',
         });
 
         if (auth && auth.user) {
             indexObject[''] = undefined;
             indexObject.authenticatedAs = `${auth.user.user_id} (${auth.user.full_name})`;
             indexObject.balanceLeft = auth.user.wallet.total_balance;
-        } else {
-            indexObject.note = 'Authentication is required to use this endpoint. Please provide a valid API key via Authorization header.';
         }
 
         return indexObject;
@@ -93,7 +86,6 @@ export class SerpHost extends RPCHost {
         protected googleSerp: GoogleSERP,
         protected serperGoogle: SerperGoogleSearchService,
         protected serperBing: SerperBingSearchService,
-        protected jinaSerp: InternalJinaSerpService,
     ) {
         super(...arguments);
 
@@ -148,7 +140,7 @@ export class SerpHost extends RPCHost {
         @RPCReflect() rpcReflect: RPCReflection,
         @Ctx() ctx: Context,
         crawlerOptions: CrawlerOptions,
-        auth: JinaEmbeddingsAuthDTO,
+        auth: AuthDTO,
         @Param('type', { type: new Set(['web', 'images', 'news']), default: 'web' })
         variant: 'web' | 'images' | 'news',
         @Param('q') q?: string,
@@ -156,8 +148,8 @@ export class SerpHost extends RPCHost {
         searchEngine?: 'google' | 'bing',
         @Param('num', { validate: (v: number) => v >= 0 && v <= 20 })
         num?: number,
-        @Param('gl', { validate: (v: string) => WORLD_COUNTRY_CODES.includes(v?.toLowerCase()) }) gl?: string,
-        @Param('hl', { validate: (v: string) => WORLD_LANGUAGES.some(l => l.code === v) }) _hl?: string,
+        @Param('gl', { validate: (v: string) => /^[a-z]{2}$/i.test(v || '') }) gl?: string,
+        @Param('hl', { validate: (v: string) => WORLD_LANGUAGES.some(l => l.code === v) || /^[a-z]{2}$/i.test(v || '') }) _hl?: string,
         @Param('location') location?: string,
         @Param('page') page?: number,
         @Param('fallback') fallback?: boolean,
@@ -187,11 +179,7 @@ export class SerpHost extends RPCHost {
                 message: `Required but not provided`
             });
         }
-        // Return content by default
         const user = await auth.assertUser();
-        if (!(user.wallet.total_balance > 0)) {
-            throw new InsufficientBalanceError(`Account balance not enough to run this query, please recharge.`);
-        }
 
         if (highFreqKey?.blockedUntil) {
             const now = new Date();
@@ -218,12 +206,17 @@ export class SerpHost extends RPCHost {
                 })
         ];
 
-        const apiRollPromise = this.rateLimitControl.simpleRPCUidBasedLimit(
-            rpcReflect, uid!, ['SEARCH'],
-            ...rateLimitPolicy
-        );
+        const apiRollPromise = uid ?
+            this.rateLimitControl.simpleRPCUidBasedLimit(
+                rpcReflect, uid, ['SEARCH'],
+                ...rateLimitPolicy
+            ) :
+            this.rateLimitControl.simpleRpcIPBasedLimit(
+                rpcReflect, ctx.ip || 'anonymous', ['SEARCH'],
+                [[new Date(Date.now() - 60 * 1000), 20]]
+            );
 
-        if (!highFreqKey) {
+        if (uid && !highFreqKey) {
             // Normal path
             await apiRollPromise;
 
@@ -241,7 +234,7 @@ export class SerpHost extends RPCHost {
                     user,
                 });
             }
-        } else {
+        } else if (uid && highFreqKey) {
             // High freq key path
             apiRollPromise.then(
                 // Rate limit not triggered, make sure not blocking.
@@ -283,12 +276,15 @@ export class SerpHost extends RPCHost {
         let chargeAmount = 0;
         rpcReflect.finally(async () => {
             if (chargeAmount) {
-                auth.reportUsage(chargeAmount, `reader-search`).catch((err) => {
-                    this.logger.warn(`Unable to report usage for ${uid}`, { err: marshalErrorLike(err) });
-                });
+                if (uid) {
+                    auth.reportUsage(chargeAmount, `xread-search`).catch((err) => {
+                        this.logger.warn(`Unable to report usage for ${uid}`, { err: marshalErrorLike(err) });
+                    });
+                }
                 try {
                     const apiRoll = await apiRollPromise;
                     apiRoll.chargeAmount = chargeAmount;
+                    await apiRoll.save({ merge: true });
                 } catch (err) {
                     await this.rateLimitControl.record({
                         uid,
@@ -451,7 +447,7 @@ export class SerpHost extends RPCHost {
         return result;
     }
 
-    *iterProviders(preference?: string, variant?: string) {
+    *iterProviders(preference?: string, _variant?: string) {
         if (preference === 'bing') {
             yield this.serperBing;
             yield this.serperGoogle;
@@ -468,8 +464,7 @@ export class SerpHost extends RPCHost {
             return;
         }
 
-        // yield variant === 'web' ? this.jinaSerp : this.serperGoogle;
-        yield this.serperGoogle
+        yield this.serperGoogle;
         yield this.serperGoogle;
         yield this.googleSerp;
     }

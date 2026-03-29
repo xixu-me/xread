@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify stand-alone build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+      PUPPETEER_SKIP_DOWNLOAD: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint source files
+        run: npm run lint
+
+      - name: Run repository tests
+        run: npm run test:ci
+
+      - name: Build TypeScript output
+        run: npm run build
+
+      - name: Smoke-test stand-alone entrypoints
+        run: |
+          NODE_ENV=dry-run node ./build/stand-alone/crawl.js
+          NODE_ENV=dry-run node ./build/stand-alone/search.js
+          NODE_ENV=dry-run node ./build/stand-alone/serp.js

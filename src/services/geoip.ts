@@ -60,6 +60,7 @@ export class GeoIPService extends AsyncService {
     logger = this.globalLogger.child({ service: this.constructor.name });
 
     mmdbCity!: Reader<CityResponse>;
+    geoIpUnavailable = false;
 
     constructor(
         protected globalLogger: GlobalLogger,
@@ -78,7 +79,18 @@ export class GeoIPService extends AsyncService {
     async _lazyload() {
         const mmdpPath = path.resolve(__dirname, '..', '..', 'licensed', 'GeoLite2-City.mmdb');
 
-        const dbBuff = await fsp.readFile(mmdpPath, { flag: 'r', encoding: null });
+        let dbBuff: Buffer;
+        try {
+            dbBuff = await fsp.readFile(mmdpPath, { flag: 'r', encoding: null });
+        } catch (error) {
+            const maybeErr = error;
+            if (typeof maybeErr === 'object' && maybeErr && 'code' in maybeErr && maybeErr.code === 'ENOENT') {
+                this.geoIpUnavailable = true;
+                this.logger.warn(`GeoIP database is missing at ${mmdpPath}; GeoIP lookups are disabled.`);
+                return;
+            }
+            throw error;
+        }
 
         this.mmdbCity = new Reader<CityResponse>(dbBuff);
 
@@ -89,6 +101,9 @@ export class GeoIPService extends AsyncService {
     @Threaded()
     async lookupCity(ip: string, lang: GEOIP_SUPPORTED_LANGUAGES = GEOIP_SUPPORTED_LANGUAGES.EN) {
         await this._lazyload();
+        if (this.geoIpUnavailable || !this.mmdbCity) {
+            return undefined;
+        }
 
         const r = this.mmdbCity.get(ip);
 

@@ -9,13 +9,12 @@ import { singleton } from 'tsyringe';
 import { CloudHTTPv2, CloudTaskV2, Ctx, FirebaseStorageBucketControl, Logger, Param, RPCReflect } from '../shared';
 import _ from 'lodash';
 import { Request, Response } from 'express';
-import { JinaEmbeddingsAuthDTO } from '../shared/dto/jina-embeddings-auth';
+import { ApiTokenAccount, AuthDTO } from '../dto/auth';
 import robotsParser from 'robots-parser';
 import { DOMParser } from '@xmldom/xmldom';
 
 import { AdaptiveCrawlerOptions } from '../dto/adaptive-crawler-options';
 import { CrawlerOptions } from '../dto/crawler-options';
-import { JinaEmbeddingsTokenAccount } from '../shared/db/jina-embeddings-token-account';
 import { AdaptiveCrawlTask, AdaptiveCrawlTaskStatus } from '../db/adaptive-crawl-task';
 import { getFunctions } from 'firebase-admin/functions';
 import { getFunctionUrl } from '../utils/get-function-url';
@@ -69,7 +68,7 @@ export class AdaptiveCrawlerHost extends RPCHost {
             req: Request,
             res: Response,
         },
-        auth: JinaEmbeddingsAuthDTO,
+        auth: AuthDTO,
         crawlerOptions: CrawlerOptions,
         adaptiveCrawlerOptions: AdaptiveCrawlerOptions,
     ) {
@@ -186,7 +185,7 @@ export class AdaptiveCrawlerHost extends RPCHost {
             req: Request,
             res: Response,
         },
-        auth: JinaEmbeddingsAuthDTO,
+        auth: AuthDTO,
         @Param('taskId') taskId: string,
         @Param('urls') urls: string[] = [],
     ) {
@@ -311,7 +310,7 @@ export class AdaptiveCrawlerHost extends RPCHost {
             reason: ''
         }
 
-        const response = await fetch('https://r.jina.ai', {
+        const response = await fetch('https://r.example.com', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -350,7 +349,7 @@ export class AdaptiveCrawlerHost extends RPCHost {
         const error = {
             reason: ''
         }
-        const response = await fetch('https://r.jina.ai', {
+        const response = await fetch('https://r.example.com', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -448,7 +447,7 @@ export class AdaptiveCrawlerHost extends RPCHost {
         ];
 
         const validLinks = Object.entries(links)
-            .map(([title, link]) => link)
+            .map(([, link]) => link)
             .filter(link => link.startsWith('http') && !invalidSuffix.some(suffix => link.endsWith(suffix)));
 
         let query = '';
@@ -459,13 +458,13 @@ export class AdaptiveCrawlerHost extends RPCHost {
         }
 
         const data = {
-            model: 'jina-reranker-v2-base-multilingual',
+            model: 'xread-reranker-v1',
             query,
             top_n: 15,
             documents: validLinks,
         };
 
-        const response = await fetch('https://api.jina.ai/v1/rerank', {
+        const response = await fetch('https://api.example.com/v1/rerank', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -488,15 +487,15 @@ export class AdaptiveCrawlerHost extends RPCHost {
         return json.results.filter(r => r.relevance_score > Math.max(highestRelevanceScore * 0.6, 0.1)).map(r => removeURLHash(r.document.text));
     }
 
-    getIndex(user?: JinaEmbeddingsTokenAccount) {
+    getIndex(_user?: ApiTokenAccount) {
         // TODO: 需要更新使用方式
         // const indexObject: Record<string, string | number | undefined> = Object.create(indexProto);
 
         // Object.assign(indexObject, {
-        //     usage1: 'https://r.jina.ai/YOUR_URL',
-        //     usage2: 'https://s.jina.ai/YOUR_SEARCH_QUERY',
-        //     homepage: 'https://jina.ai/reader',
-        //     sourceCode: 'https://github.com/jina-ai/reader',
+        //     usage1: 'https://r.example.com/YOUR_URL',
+        //     usage2: 'https://s.example.com/YOUR_SEARCH_QUERY',
+        //     homepage: 'https://example.com/xread',
+        //     sourceCode: 'https://github.com/example/xread',
         // });
 
         // if (user) {

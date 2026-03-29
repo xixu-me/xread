@@ -1,10 +1,12 @@
 {
-  "name": "reader",
+  "name": "xread",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
+    "test:ci": "node --test tests/open-source-build.test.cjs tests/integrity-check.test.cjs tests/prepare-licensed-assets.test.cjs tests/github-automation.test.cjs",
+    "prepare:licensed-assets": "node ./scripts/prepare-licensed-assets.cjs",
     "build": "node ./integrity-check.cjs && tsc -p .",
-    "build:watch": "tsc --watch",
-    "build:clean": "rm -rf ./build",
+    "build:watch": "tsc -p . -w",
+    "build:clean": "node -e \"require('fs').rmSync('./build',{recursive:true,force:true})\"",
     "serve": "npm run build && npm run start",
     "debug": "npm run build && npm run dev",
     "start": "node ./build/stand-alone/crawl.js",
@@ -41,7 +43,6 @@
     "lru-cache": "^11.0.2",
     "maxmind": "^4.3.18",
     "minio": "^7.1.3",
-    "node-libcurl": "^4.1.0",
     "openai": "^4.20.0",
     "pdfjs-dist": "^4.10.38",
     "puppeteer": "^23.3.0",

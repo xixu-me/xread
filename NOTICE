@@ -1,0 +1,7 @@
+This repository contains a modified and rebranded derivative of upstream software
+originally distributed by Jina AI Limited under the Apache License 2.0.
+
+Modifications in this fork include:
+- replacing project branding and product-facing strings with neutral placeholders
+- updating example domains, package metadata, and deployment placeholders
+- preserving the original LICENSE file for attribution and license compliance
