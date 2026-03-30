@@ -75,7 +75,7 @@ function applyPatch(base: any, patch: any) {
 }
 
 class LocalStore {
-    rootDir = path.resolve('.cache/xread/db');
+    rootDir = path.resolve(process.env.LOCAL_DB_ROOT || '.cache/xread/db');
 
     constructor() {
         fs.mkdirSync(this.rootDir, { recursive: true });

@@ -12,6 +12,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 zstd \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r xread \
+    && useradd -g xread -G audio,video -m xread
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -28,15 +31,14 @@ RUN NODE_ENV=dry-run node ./build/stand-alone/crawl.js \
     && NODE_ENV=dry-run node ./build/stand-alone/search.js \
     && NODE_ENV=dry-run node ./build/stand-alone/serp.js
 
-RUN groupadd -r xread \
-    && useradd -g xread -G audio,video -m xread \
-    && chown -R xread:xread /app
-
 USER xread
 
+ENV LOCAL_DB_ROOT=/tmp/xread/db
 ENV OVERRIDE_CHROME_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV NODE_COMPILE_CACHE=node_modules
 ENV PORT=8080
+ENV STORAGE_ROOT=/tmp/xread/storage
+ENV STANDALONE_ALLOW_INTERNAL_DNS_REWRITE=true
 
 EXPOSE 3000 3001 8080 8081
 ENTRYPOINT ["node"]
