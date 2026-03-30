@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Enforce dependency security policy
+        run: npm run security:audit
+
       - name: Lint source files
         run: npm run lint
 

@@ -19,5 +19,5 @@
     },
     "compileOnSave": true,
     "include": ["src"],
-    "exclude": ["src/cloud-functions/**/*"]
+    "exclude": ["src/cloud-functions/**/*", "src/utils/get-function-url.ts"]
 }
