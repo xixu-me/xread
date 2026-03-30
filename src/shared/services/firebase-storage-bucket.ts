@@ -1,5 +1,6 @@
 import { AsyncService } from "civkit/async-service";
 import { singleton } from "tsyringe";
+import os from "os";
 import path from "path";
 import fs from "fs/promises";
 import { pathToFileURL } from "url";
@@ -22,11 +23,38 @@ export class FirebaseStorageBucketControl extends AsyncService {
 
   override async init() {
     await this.dependencyReady();
-    this.rootDir = path.resolve(
+    this.rootDir = await this.resolveWritableRoot(
       this.secretExposer.STORAGE_ROOT || ".cache/xread/storage",
     );
-    await fs.mkdir(this.rootDir, { recursive: true });
     this.emit("ready");
+  }
+
+  protected async resolveWritableRoot(preferredRoot: string) {
+    const preferred = path.resolve(preferredRoot);
+    const fallback = path.join(os.tmpdir(), "xread", "storage");
+
+    for (const candidate of [preferred, fallback]) {
+      try {
+        await fs.mkdir(candidate, { recursive: true });
+        const probe = path.join(candidate, `.write-test-${process.pid}`);
+        await fs.writeFile(probe, "");
+        await fs.rm(probe, { force: true });
+
+        if (candidate !== preferred) {
+          console.warn(
+            `[xread] Storage root ${preferred} is not writable, falling back to ${candidate}`,
+          );
+        }
+
+        return candidate;
+      } catch {
+        continue;
+      }
+    }
+
+    throw new Error(
+      `Neither preferred nor fallback storage roots are writable: ${preferred}`,
+    );
   }
 
   protected resolvePath(key: string) {

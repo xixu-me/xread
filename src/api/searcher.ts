@@ -64,7 +64,8 @@ export class SearcherHost extends RPCHost {
   cacheValidMs = 1000 * 3600;
   pageCacheToleranceMs = 1000 * 3600 * 24;
 
-  reasonableDelayMs = 15_000;
+  reasonableDelayMs = 8_000;
+  standaloneSearchPageTimeoutMs = 12_000;
 
   targetResultCount = 5;
 
@@ -394,9 +395,10 @@ export class SearcherHost extends RPCHost {
       );
     }
 
-    if (crawlOpts.timeoutMs && crawlOpts.timeoutMs < 30_000) {
-      delete crawlOpts.timeoutMs;
-    }
+    crawlOpts.timeoutMs = Math.min(
+      crawlOpts.timeoutMs || this.standaloneSearchPageTimeoutMs,
+      this.standaloneSearchPageTimeoutMs,
+    );
 
     let lastScrapped: any[] | undefined;
     const targetResultCount = crawlWithoutContent ? count : count + 2;
