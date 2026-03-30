@@ -221,18 +221,23 @@ async function getWebSearchResults() {
         const cite = primaryLink.querySelector('cite[role=text]')?.textContent;
         let date = cite?.split('·')[1]?.trim();
         const snippets = Array.from(x.querySelectorAll('div[data-sncf*="1"] span'));
-        let snippet = snippets[snippets.length - 1]?.textContent;
+        let snippet: string | null | undefined = snippets[snippets.length - 1]?.textContent;
         if (!snippet) {
             snippet = x.querySelector('div.IsZvec')?.textContent?.trim() || null;
         }
         date ??= snippets[snippets.length - 2]?.textContent?.trim();
         const imageUrl = x.querySelector('div[data-sncf*="1"] img[src]:not(img[src^="data"])')?.getAttribute('src');
         let siteLinks = Array.from(x.querySelectorAll('div[data-sncf*="3"] a[href]')).map((l) => {
+            const link = l.getAttribute('href');
+            if (!link) {
+                return undefined;
+            }
+
             return {
-                link: l.getAttribute('href'),
+                link,
                 title: l.textContent,
             };
-        });
+        }).filter(Boolean) as any;
         const perhapsParent = x.parentElement?.closest('div[data-hveid]');
         if (!siteLinks?.length && perhapsParent) {
             const candidates = Array.from(perhapsParent.querySelectorAll('td h3'));
@@ -242,9 +247,13 @@ async function getWebSearchResults() {
                     if (!link) {
                         return undefined;
                     }
+                    const href = link.getAttribute('href');
+                    if (!href) {
+                        return undefined;
+                    }
                     const snippet = l.nextElementSibling?.textContent;
                     return {
-                        link: link.getAttribute('href'),
+                        link: href,
                         title: link.textContent,
                         snippet,
                     };
