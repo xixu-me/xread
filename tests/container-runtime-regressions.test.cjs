@@ -23,10 +23,13 @@ test("browser launchers include container-safe Chrome sandbox flags", () => {
 test("SERP puppeteer control uses an absolute control timeout instead of a fixed post-navigation race", () => {
   const serpPuppeteer = readProjectFile("src/services/serp/puppeteer.ts");
 
-  assert.match(serpPuppeteer, /waitUntil:\s*\['domcontentloaded', 'load'\]/);
   assert.match(
     serpPuppeteer,
-    /setTimeout\(\(\) => \{\s*resultDeferred\.reject\(new TimeoutError/,
+    /waitUntil:\s*\[\s*["']domcontentloaded["'],\s*["']load["'],?\s*\]/,
+  );
+  assert.match(
+    serpPuppeteer,
+    /setTimeout\(\(\) => \{\s*resultDeferred\.reject\(\s*new TimeoutError/,
   );
   assert.doesNotMatch(serpPuppeteer, /networkidle0/);
   assert.doesNotMatch(serpPuppeteer, /await delay\(5000\)/);
@@ -73,7 +76,7 @@ test("standalone fallback search provider is available for local web search with
   assert.match(fallbackProvider, /DuckDuckGo HTML fallback/i);
   assert.match(
     fallbackProvider,
-    /querySelectorAll\('\.result:not\(\.result--ad\)'\)/,
+    /querySelectorAll\(\s*["']\.result:not\(\.result--ad\)["']/,
   );
   assert.match(fallbackProvider, /ad_domain/);
 });
