@@ -18,7 +18,7 @@
   "main": "build/index.js",
   "dependencies": {
     "@esm2cjs/normalize-url": "^8.0.0",
-    "@google-cloud/translate": "^8.2.0",
+    "@google-cloud/translate": "^9.3.0",
     "@koa/bodyparser": "^5.1.1",
     "@mozilla/readability": "^0.6.0",
     "@napi-rs/canvas": "^0.1.68",
