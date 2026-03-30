@@ -498,29 +498,56 @@ export class SearcherHost extends RPCHost {
     }
 
     let earlyReturn = false;
+    const returnTextResults = async (scrapped?: FormattedPage[]) => {
+      const fallbackResults = scrapped || trimmedResults;
+      await assigningOfGeneralMixins;
+      chargeAmount = this.assignChargeAmount(
+        fallbackResults,
+        count,
+        chargeAmountScaler,
+        fallbackQuery,
+      );
+
+      return assignTransferProtocolMeta(`${fallbackResults}`, {
+        contentType: "text/plain",
+        envelope: null,
+      });
+    };
+    const returnJsonResults = async (scrapped?: FormattedPage[]) => {
+      const fallbackResults = scrapped || trimmedResults;
+      await assigningOfGeneralMixins;
+      chargeAmount = this.assignChargeAmount(
+        fallbackResults,
+        count,
+        chargeAmountScaler,
+        fallbackQuery,
+      );
+
+      return fallbackResults;
+    };
     if (
       !ctx.accepts("text/plain") &&
       (ctx.accepts("text/json") || ctx.accepts("application/json"))
     ) {
       let earlyReturnTimer: ReturnType<typeof setTimeout> | undefined;
+      const hardReturnTimer = setTimeout(
+        async () => {
+          if (earlyReturn || rpcReflect.signal.aborted) {
+            return;
+          }
+
+          rpcReflect.return(await returnJsonResults(lastScrapped));
+          earlyReturn = true;
+        },
+        (crawlerOptions.timeout || 0) * 1000 || this.reasonableDelayMs,
+      );
       const setEarlyReturnTimer = () => {
         if (earlyReturnTimer) {
           return;
         }
         earlyReturnTimer = setTimeout(
           async () => {
-            if (!lastScrapped) {
-              return;
-            }
-            await assigningOfGeneralMixins;
-            chargeAmount = this.assignChargeAmount(
-              lastScrapped,
-              count,
-              chargeAmountScaler,
-              fallbackQuery,
-            );
-
-            rpcReflect.return(lastScrapped);
+            rpcReflect.return(await returnJsonResults(lastScrapped));
             earlyReturn = true;
           },
           (crawlerOptions.timeout || 0) * 1000 || this.reasonableDelayMs,
@@ -555,6 +582,7 @@ export class SearcherHost extends RPCHost {
       if (earlyReturnTimer) {
         clearTimeout(earlyReturnTimer);
       }
+      clearTimeout(hardReturnTimer);
 
       if (!lastScrapped) {
         throw new AssertionFailureError(
@@ -576,29 +604,24 @@ export class SearcherHost extends RPCHost {
     }
 
     let earlyReturnTimer: ReturnType<typeof setTimeout> | undefined;
+    const hardReturnTimer = setTimeout(
+      async () => {
+        if (earlyReturn || rpcReflect.signal.aborted) {
+          return;
+        }
+
+        rpcReflect.return(await returnTextResults(lastScrapped));
+        earlyReturn = true;
+      },
+      (crawlerOptions.timeout || 0) * 1000 || this.reasonableDelayMs,
+    );
     const setEarlyReturnTimer = () => {
       if (earlyReturnTimer) {
         return;
       }
       earlyReturnTimer = setTimeout(
         async () => {
-          if (!lastScrapped) {
-            return;
-          }
-          await assigningOfGeneralMixins;
-          chargeAmount = this.assignChargeAmount(
-            lastScrapped,
-            count,
-            chargeAmountScaler,
-            fallbackQuery,
-          );
-
-          rpcReflect.return(
-            assignTransferProtocolMeta(`${lastScrapped}`, {
-              contentType: "text/plain",
-              envelope: null,
-            }),
-          );
+          rpcReflect.return(await returnTextResults(lastScrapped));
           earlyReturn = true;
         },
         (crawlerOptions.timeout || 0) * 1000 || this.reasonableDelayMs,
@@ -638,6 +661,7 @@ export class SearcherHost extends RPCHost {
     if (earlyReturnTimer) {
       clearTimeout(earlyReturnTimer);
     }
+    clearTimeout(hardReturnTimer);
 
     if (!lastScrapped) {
       throw new AssertionFailureError(
@@ -655,10 +679,7 @@ export class SearcherHost extends RPCHost {
       );
     }
 
-    return assignTransferProtocolMeta(`${lastScrapped}`, {
-      contentType: "text/plain",
-      envelope: null,
-    });
+    return returnTextResults(lastScrapped);
   }
 
   /**
