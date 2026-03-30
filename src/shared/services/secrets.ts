@@ -7,6 +7,7 @@ type EnvConfig = Record<string, string> & {
     readonly CLOUD_FLARE_API_KEY: string;
     readonly LOCAL_PROXY_URLS: string;
     readonly STORAGE_ROOT: string;
+    readonly LOCAL_DB_ROOT: string;
 };
 
 export const readEnv = (key: string) => process.env[key] || '';
@@ -42,6 +43,10 @@ export class SecretExposer extends AsyncService {
 
     get STORAGE_ROOT() {
         return readEnv('STORAGE_ROOT');
+    }
+
+    get LOCAL_DB_ROOT() {
+        return readEnv('LOCAL_DB_ROOT');
     }
 }
 

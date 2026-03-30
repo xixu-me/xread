@@ -24,6 +24,8 @@ import { SERPResult } from '../db/searched';
 import { SerperBingSearchService, SerperGoogleSearchService } from '../services/serp/serper';
 import { LRUCache } from 'lru-cache';
 import { API_CALL_STATUS } from '../shared/db/api-roll';
+import { SecretExposer } from '../shared/services/secrets';
+import { StandaloneSearchFallbackService } from '../services/serp/standalone-fallback';
 
 type RateLimitCache = {
     blockedUntil?: Date;
@@ -83,7 +85,9 @@ export class SerpHost extends RPCHost {
         protected globalLogger: GlobalLogger,
         protected rateLimitControl: RateLimitControl,
         protected threadLocal: AsyncLocalContext,
+        protected secretExposer: SecretExposer,
         protected googleSerp: GoogleSERP,
+        protected standaloneFallback: StandaloneSearchFallbackService,
         protected serperGoogle: SerperGoogleSearchService,
         protected serperBing: SerperBingSearchService,
     ) {
@@ -448,25 +452,45 @@ export class SerpHost extends RPCHost {
     }
 
     *iterProviders(preference?: string, _variant?: string) {
+        const preferScraping = !this.secretExposer.SERPER_SEARCH_API_KEY;
+        const includeSerper = Boolean(this.secretExposer.SERPER_SEARCH_API_KEY);
+
         if (preference === 'bing') {
-            yield this.serperBing;
-            yield this.serperGoogle;
+            if (preferScraping) {
+                yield this.standaloneFallback;
+            }
+            if (includeSerper) {
+                yield this.serperBing;
+                yield this.serperGoogle;
+            }
             yield this.googleSerp;
 
             return;
         }
 
         if (preference === 'google') {
+            if (preferScraping) {
+                yield this.standaloneFallback;
+                yield this.googleSerp;
+            }
             yield this.googleSerp;
             yield this.googleSerp;
-            yield this.serperGoogle;
+            if (includeSerper) {
+                yield this.serperGoogle;
+            }
 
             return;
         }
 
-        yield this.serperGoogle;
-        yield this.serperGoogle;
+        if (preferScraping) {
+            yield this.standaloneFallback;
+            yield this.googleSerp;
+        }
         yield this.googleSerp;
+        if (includeSerper) {
+            yield this.serperGoogle;
+            yield this.serperGoogle;
+        }
     }
 
     async cachedSearch(variant: 'web' | 'news' | 'images', query: Record<string, any>, opts: CrawlerOptions) {

@@ -55,6 +55,11 @@ export class GoogleSERP extends AsyncService {
             return this.curlControl.sideLoad(url, opts);
         }
 
+        if (!this.proxyProvider.isConfigured()) {
+            this.logger.info(`No proxy configured, falling back to direct Google request`, { url: url.href });
+            return this.curlControl.sideLoad(url, opts);
+        }
+
         const proxy = await this.proxyProvider.alloc(
             process.env.PREFERRED_PROXY_COUNTRY || 'auto'
         );
