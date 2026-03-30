@@ -26,6 +26,7 @@ import { LRUCache } from 'lru-cache';
 import { API_CALL_STATUS } from '../shared/db/api-roll';
 import { SecretExposer } from '../shared/services/secrets';
 import { StandaloneSearchFallbackService } from '../services/serp/standalone-fallback';
+import { STANDALONE_BOOT_TIMEOUT_MS } from '../services/boot-timeouts';
 
 type RateLimitCache = {
     blockedUntil?: Date;
@@ -115,7 +116,7 @@ export class SerpHost extends RPCHost {
     }
 
     override async init() {
-        await this.dependencyReady();
+        await this.dependencyReady(STANDALONE_BOOT_TIMEOUT_MS);
 
         this.emit('ready');
     }
