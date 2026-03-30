@@ -29,6 +29,7 @@ import { SerperSearchQueryParams } from '../shared/3rd-party/serper-search';
 import { WebSearchEntry } from '../services/serp/compat';
 import { SecretExposer } from '../shared/services/secrets';
 import { StandaloneSearchFallbackService } from '../services/serp/standalone-fallback';
+import { STANDALONE_BOOT_TIMEOUT_MS } from '../services/boot-timeouts';
 
 interface FormattedPage extends RealFormattedPage {
     favicon?: string;
@@ -97,7 +98,7 @@ export class SearcherHost extends RPCHost {
     }
 
     override async init() {
-        await this.dependencyReady();
+        await this.dependencyReady(STANDALONE_BOOT_TIMEOUT_MS);
 
         this.emit('ready');
     }

@@ -74,3 +74,24 @@ test('standalone URL validation can allow Docker DNS rewrite ranges behind an ex
   assert.match(miscService, /198\.18/);
   assert.match(miscService, /fd00::/i);
 });
+
+test('standalone services use extended boot timeouts for cold starts', () => {
+  const bootTimeouts = readProjectFile('src/services/boot-timeouts.ts');
+  const crawlHost = readProjectFile('src/api/crawler.ts');
+  const searcherHost = readProjectFile('src/api/searcher.ts');
+  const serpHost = readProjectFile('src/api/serp.ts');
+  const crawlServer = readProjectFile('src/stand-alone/crawl.ts');
+  const searchServer = readProjectFile('src/stand-alone/search.ts');
+  const serpServer = readProjectFile('src/stand-alone/serp.ts');
+  const googleSerp = readProjectFile('src/services/serp/google.ts');
+
+  assert.match(bootTimeouts, /STANDALONE_BOOT_TIMEOUT_MS = 90_000/);
+  assert.match(bootTimeouts, /SERP_BOOT_TIMEOUT_MS = 90_000/);
+  assert.match(crawlHost, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(searcherHost, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(serpHost, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(crawlServer, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(searchServer, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(serpServer, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(googleSerp, /dependencyReady\(SERP_BOOT_TIMEOUT_MS\)/);
+});

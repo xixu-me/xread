@@ -20,6 +20,7 @@ import finalizer, { Finalizer } from '../services/finalizer';
 import { SerpHost } from '../api/serp';
 import koaCompress from 'koa-compress';
 import { getAuditionMiddleware } from '../shared/utils/audition';
+import { STANDALONE_BOOT_TIMEOUT_MS } from '../services/boot-timeouts';
 
 @singleton()
 export class SERPStandAloneServer extends KoaServer {
@@ -52,7 +53,7 @@ export class SERPStandAloneServer extends KoaServer {
 
     override async init() {
         await this.walkForAssets();
-        await this.dependencyReady();
+        await this.dependencyReady(STANDALONE_BOOT_TIMEOUT_MS);
 
         for (const [k, v] of this.registry.conf.entries()) {
             if (v.tags?.includes('crawl')) {

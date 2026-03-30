@@ -2,7 +2,7 @@
   "name": "xread",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "test:ci": "node --test tests/open-source-build.test.cjs tests/integrity-check.test.cjs tests/prepare-licensed-assets.test.cjs tests/github-automation.test.cjs",
+    "test:ci": "node --test tests/open-source-build.test.cjs tests/integrity-check.test.cjs tests/prepare-licensed-assets.test.cjs tests/github-automation.test.cjs tests/container-runtime-regressions.test.cjs",
     "prepare:licensed-assets": "node ./scripts/prepare-licensed-assets.cjs",
     "build": "node ./integrity-check.cjs && tsc -p .",
     "build:watch": "tsc -p . -w",
