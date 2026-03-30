@@ -175,7 +175,7 @@ export class JSDomControl extends AsyncService {
                         const u1Txt = new URL(u1, snapshot.rebase || snapshot.href).toString();
                         imgSet.add(u1Txt);
                         absUrl = u1Txt;
-                    } catch (err) {
+                    } catch (_err) {
                         // void 0;
                     }
                 }
@@ -184,7 +184,7 @@ export class JSDomControl extends AsyncService {
                         const u2Txt = new URL(u2, snapshot.rebase || snapshot.href).toString();
                         imgSet.add(u2Txt);
                         absUrl = u2Txt;
-                    } catch (err) {
+                    } catch (_err) {
                         // void 0;
                     }
                 }
@@ -233,7 +233,7 @@ export class JSDomControl extends AsyncService {
                         const parsed = new URL(href, snapshot.rebase || snapshot.href);
 
                         return [text, parsed.toString()] as const;
-                    } catch (err) {
+                    } catch (_err) {
                         return undefined;
                     }
                 })

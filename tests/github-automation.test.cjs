@@ -17,8 +17,7 @@ test('legacy Cloud Run deployment workflow has been removed', () => {
 
 test('repository automation files exist for CI, container publish, and Dependabot', () => {
   const expectedFiles = [
-    '.eslintrc.cjs',
-    '.eslintignore',
+    'eslint.config.cjs',
     '.github/workflows/ci.yml',
     '.github/workflows/codeql.yml',
     '.github/workflows/image.yml',
@@ -41,9 +40,9 @@ test('container image workflow publishes to GHCR instead of legacy GCP registrie
 test('container image publishing waits for CI instead of running on pull requests directly', () => {
   const workflow = read('.github/workflows/image.yml');
 
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /workflows:\s*\n\s*- CI/);
+  assert.match(workflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.doesNotMatch(workflow, /pull_request:/);
+  assert.doesNotMatch(workflow, /workflow_run:/);
 });
 
 test('workflows opt into Node 24 for JavaScript-based GitHub Actions', () => {
@@ -77,12 +76,13 @@ test('dependabot config covers npm, docker, and github-actions updates', () => {
   assert.match(dependabot, /package-ecosystem: github-actions/);
 });
 
-test('dependabot ignores unsupported major upgrades for koa and docker base images', () => {
+test('dependabot groups include major upgrades instead of suppressing them', () => {
   const dependabot = read('.github/dependabot.yml');
 
-  assert.match(dependabot, /dependency-name:\s*koa/);
-  assert.match(dependabot, /update-types:\s*\n\s*- version-update:semver-major/);
-  assert.match(dependabot, /dependency-name:\s*node/);
+  assert.match(dependabot, /production-dependencies:[\s\S]*-\s+major/);
+  assert.match(dependabot, /development-dependencies:[\s\S]*-\s+major/);
+  assert.doesNotMatch(dependabot, /dependency-name:\s*koa/);
+  assert.doesNotMatch(dependabot, /dependency-name:\s*node/);
 });
 
 test('CI workflow runs lint before tests and build', () => {

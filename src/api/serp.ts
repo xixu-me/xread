@@ -294,7 +294,7 @@ export class SerpHost extends RPCHost {
                     const apiRoll = await apiRollPromise;
                     apiRoll.chargeAmount = chargeAmount;
                     await apiRoll.save({ merge: true });
-                } catch (err) {
+                } catch (_err) {
                     await this.rateLimitControl.record({
                         uid,
                         tags: [rpcReflect.name.toUpperCase()],
