@@ -26,7 +26,7 @@ test('security governance workflow enforces npm audit policy and uploads reports
 
   assert.match(workflow, /name:\s+Security Governance/);
   assert.match(workflow, /run:\s+npm run security:audit/);
-  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(workflow, /actions\/upload-artifact@v6/);
   assert.match(workflow, /cron:\s+'31 17 \* \* 1'/);
 });
 
