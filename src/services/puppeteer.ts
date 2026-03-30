@@ -24,6 +24,20 @@ const tldExtract = require('tld-extract');
 
 const READABILITY_JS = fs.readFileSync(require.resolve('@mozilla/readability/Readability.js'), 'utf-8');
 
+function getChromeLaunchArgs() {
+    const args = [
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+    ];
+
+    // Docker and many CI kernels do not permit Chrome's sandbox namespaces.
+    if (process.env.PUPPETEER_DISABLE_SANDBOX !== 'false' && fs.existsSync('/.dockerenv')) {
+        args.push('--no-sandbox', '--disable-setuid-sandbox');
+    }
+
+    return args;
+}
+
 
 export interface ImgBrief {
     src: string;
@@ -559,13 +573,11 @@ export class PuppeteerControl extends AsyncService {
             }
         }
         this.browser = await puppeteer.launch({
-            timeout: 10_000,
+            timeout: 30_000,
             headless: !Boolean(process.env.DEBUG_BROWSER),
+            pipe: true,
             executablePath: process.env.OVERRIDE_CHROME_EXECUTABLE_PATH,
-            args: [
-                '--disable-dev-shm-usage',
-                '--disable-blink-features=AutomationControlled'
-            ]
+            args: getChromeLaunchArgs(),
         }).catch((err: any) => {
             this.logger.error(`Unknown firebase issue, just die fast.`, { err });
             process.nextTick(() => {

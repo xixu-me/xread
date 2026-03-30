@@ -31,6 +31,10 @@ export class ProxyProviderService extends AsyncService {
         return /^[a-z]{2}$/i.test(input);
     }
 
+    isConfigured() {
+        return this.proxies.length > 0;
+    }
+
     async alloc(input?: string) {
         if (input === 'none') {
             throw new ServiceDisabledError(`Proxy allocation is disabled for '${input}'.`);
@@ -48,4 +52,3 @@ export class ProxyProviderService extends AsyncService {
         yield await this.alloc(input);
     }
 }
-

@@ -92,5 +92,8 @@ test('Dockerfile is self-contained and no longer relies on curl-impersonate', ()
 
   assert.match(dockerfile, /FROM node:22-bookworm-slim/);
   assert.match(dockerfile, /PUPPETEER_SKIP_DOWNLOAD=true/);
+  assert.match(dockerfile, /LOCAL_DB_ROOT=\/tmp\/xread\/db/);
+  assert.match(dockerfile, /STORAGE_ROOT=\/tmp\/xread\/storage/);
+  assert.doesNotMatch(dockerfile, /chown -R xread:xread \/app/);
   assert.doesNotMatch(dockerfile, /curl-impersonate|LD_PRELOAD/);
 });

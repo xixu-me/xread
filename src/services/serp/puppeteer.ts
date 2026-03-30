@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import fs from 'fs';
 import { readFile } from 'fs/promises';
 import { container, singleton } from 'tsyringe';
 
@@ -18,6 +19,20 @@ import { AsyncLocalContext } from '../async-context';
 import { GlobalLogger } from '../logger';
 import { minimalStealth } from '../minimal-stealth';
 import { BlackHoleDetector } from '../blackhole-detector';
+
+function getChromeLaunchArgs() {
+    const args = [
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+    ];
+
+    // Docker and many CI kernels do not permit Chrome's sandbox namespaces.
+    if (process.env.PUPPETEER_DISABLE_SANDBOX !== 'false' && fs.existsSync('/.dockerenv')) {
+        args.push('--no-sandbox', '--disable-setuid-sandbox');
+    }
+
+    return args;
+}
 
 
 export interface ScrappingOptions {
@@ -277,12 +292,11 @@ export class SERPSpecializedPuppeteerControl extends AsyncService {
             }
         }
         this.browser = await puppeteer.launch({
-            timeout: 10_000,
+            timeout: 30_000,
             headless: !Boolean(process.env.DEBUG_BROWSER),
+            pipe: true,
             executablePath: process.env.OVERRIDE_CHROME_EXECUTABLE_PATH,
-            args: [
-                '--disable-dev-shm-usage', '--disable-blink-features=AutomationControlled'
-            ]
+            args: getChromeLaunchArgs(),
         }).catch((err: any) => {
             this.logger.error(`Unknown firebase issue, just die fast.`, { err });
             process.nextTick(() => {
@@ -647,9 +661,9 @@ func().then((result) => {
             );
         });
 
-        const timeout = options.timeoutMs || 30_000;
+        const timeout = options.timeoutMs || 45_000;
         const goToOptions: GoToOptions = {
-            waitUntil: ['load', 'domcontentloaded', 'networkidle0'],
+            waitUntil: ['domcontentloaded', 'load'],
             timeout,
         };
 
@@ -657,12 +671,11 @@ func().then((result) => {
             goToOptions.referer = options.referer;
         }
 
-
         const gotoPromise = page.goto(url, goToOptions)
             .catch((err) => {
                 if (err instanceof TimeoutError) {
                     this.logger.warn(`Page ${sn}: Browsing of ${url} timed out`, { err });
-                    return new AssertionFailureError({
+                    throw new AssertionFailureError({
                         message: `Failed to goto ${url}: ${err}`,
                         cause: err,
                     });
@@ -670,17 +683,20 @@ func().then((result) => {
 
                 this.logger.warn(`Page ${sn}: Browsing of ${url} aborted`, { err });
                 return undefined;
-            }).then(async (r) => {
-                await delay(5000);
-                resultDeferred.reject(new TimeoutError(`Control function did not respond in time`));
-                return r;
             });
 
-        try {
-            await Promise.race([resultDeferred.promise, gotoPromise]);
+        const controlTimeout = setTimeout(() => {
+            resultDeferred.reject(new TimeoutError(`Control function did not respond in time`));
+        }, timeout);
+        controlTimeout.unref();
 
-            return resultDeferred.promise;
+        try {
+            return await Promise.race([
+                resultDeferred.promise,
+                gotoPromise.then(() => resultDeferred.promise),
+            ]);
         } finally {
+            clearTimeout(controlTimeout);
             page.off(this._REPORT_FUNCTION_NAME, hdl as any);
             this.ditchPage(page);
             resultDeferred.resolve();

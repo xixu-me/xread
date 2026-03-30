@@ -10,6 +10,16 @@ import { Threaded } from './threaded';
 
 const normalizeUrl = require('@esm2cjs/normalize-url').default;
 
+const STANDALONE_ALLOW_INTERNAL_DNS_REWRITE = process.env.STANDALONE_ALLOW_INTERNAL_DNS_REWRITE === 'true';
+
+function isStandaloneDnsRewriteAddress(address: string) {
+    const normalized = address.toLowerCase();
+
+    return normalized.startsWith('198.18.')
+        || normalized.startsWith('198.19.')
+        || normalized.startsWith('fd00::');
+}
+
 @singleton()
 export class MiscService extends AsyncService {
 
@@ -84,8 +94,20 @@ export class MiscService extends AsyncService {
                 return;
             });
             if (resolved) {
+                const resolvedAddrs = resolved.map((x) => x.address);
+                const allowStandaloneDnsRewrite = STANDALONE_ALLOW_INTERNAL_DNS_REWRITE
+                    && resolvedAddrs.length
+                    && resolvedAddrs.every((x) => isStandaloneDnsRewriteAddress(x));
+
+                if (allowStandaloneDnsRewrite) {
+                    this.logger.warn(`Allowing Docker DNS rewrite addresses for standalone container`, {
+                        href: result.href,
+                        ips: resolvedAddrs,
+                    });
+                }
+
                 for (const x of resolved) {
-                    if (isIPInNonPublicRange(x.address)) {
+                    if (isIPInNonPublicRange(x.address) && !allowStandaloneDnsRewrite) {
                         this.logger.warn(`Suspicious action: Domain resolved to non-public IP: ${result.hostname} => ${x.address}`, { href: result.href, ip: x.address });
                         throw new SecurityCompromiseError({
                             message: `Suspicious action: Domain resolved to non-public IP: ${x.address}`,

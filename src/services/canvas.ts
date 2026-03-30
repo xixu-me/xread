@@ -41,21 +41,44 @@ export class CanvasService extends AsyncService {
         super(...arguments);
     }
 
+    protected async loadBundledFont() {
+        const bundledFontPath = path.resolve(__dirname, '../../licensed/SourceHanSansSC-Regular.otf');
+
+        try {
+            return {
+                family: 'Source Han Sans SC',
+                data: await readFile(bundledFontPath),
+            };
+        } catch (err: any) {
+            if (err?.code === 'ENOENT') {
+                this.logger.warn(`Bundled font asset unavailable, falling back to system fonts`, {
+                    err: { code: 'ENOENT', path: bundledFontPath },
+                });
+                return {
+                    family: 'WenQuanYi Zen Hei',
+                    data: undefined,
+                };
+            }
+
+            throw err;
+        }
+    }
+
     override async init() {
         await this.dependencyReady();
         if (!isMainThread) {
             const { createSvg2png, initialize } = require('svg2png-wasm');
             const wasmBuff = await readFile(path.resolve(path.dirname(require.resolve('svg2png-wasm')), '../svg2png_wasm_bg.wasm'));
-            const fontBuff = await readFile(path.resolve(__dirname, '../../licensed/SourceHanSansSC-Regular.otf'));
+            const font = await this.loadBundledFont();
             await initialize(wasmBuff);
             this.svg2png = createSvg2png({
-                fonts: [Uint8Array.from(fontBuff)],
+                fonts: font.data ? [Uint8Array.from(font.data)] : [],
                 defaultFontFamily: {
-                    serifFamily: 'Source Han Sans SC',
-                    sansSerifFamily: 'Source Han Sans SC',
-                    cursiveFamily: 'Source Han Sans SC',
-                    fantasyFamily: 'Source Han Sans SC',
-                    monospaceFamily: 'Source Han Sans SC',
+                    serifFamily: font.family,
+                    sansSerifFamily: font.family,
+                    cursiveFamily: font.family,
+                    fantasyFamily: font.family,
+                    monospaceFamily: font.family,
                 }
             });
         }
