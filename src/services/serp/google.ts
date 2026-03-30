@@ -13,6 +13,7 @@ import { ServiceBadApproachError, ServiceBadAttemptError } from '../errors';
 import { parseJSONText } from 'civkit/vectorize';
 import { retryWith } from 'civkit/decorators';
 import { ProxyProviderService } from '../../shared/services/proxy-provider';
+import { SERP_BOOT_TIMEOUT_MS } from '../boot-timeouts';
 
 @singleton()
 export class GoogleSERP extends AsyncService {
@@ -31,7 +32,7 @@ export class GoogleSERP extends AsyncService {
     }
 
     override async init() {
-        await this.dependencyReady();
+        await this.dependencyReady(SERP_BOOT_TIMEOUT_MS);
 
         this.emit('ready');
     }
@@ -52,6 +53,11 @@ export class GoogleSERP extends AsyncService {
     }, 3)
     async sideLoadWithAllocatedProxy(url: URL, opts?: ScrappingOptions) {
         if (opts?.allocProxy === 'none') {
+            return this.curlControl.sideLoad(url, opts);
+        }
+
+        if (!this.proxyProvider.isConfigured()) {
+            this.logger.info(`No proxy configured, falling back to direct Google request`, { url: url.href });
             return this.curlControl.sideLoad(url, opts);
         }
 
