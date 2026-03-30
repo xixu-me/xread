@@ -12,7 +12,7 @@ Xread is an open-source, self-hosted web ingestion service for LLM workflows. It
 - `search`: run a search and return text that is easy to paste into a prompt
 - `serp`: run a search and return structured JSON
 
-It is a standalone fork of the public [Jina AI Reader](https://jina.ai/reader) repository in [jina-ai/reader](https://github.com/jina-ai/reader), adapted for self-hosted use without the original internal `thinapps-shared` dependency.
+It is a standalone fork of the public [Jina AI Reader](https://jina.ai/reader) repository in [`jina-ai/reader`](https://github.com/jina-ai/reader), adapted for self-hosted use without the original internal `thinapps-shared` dependency.
 
 ## What This Repository Adds
 
