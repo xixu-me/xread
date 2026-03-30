@@ -81,7 +81,10 @@ test('dependabot groups include major upgrades instead of suppressing them', () 
 
   assert.match(dependabot, /production-dependencies:[\s\S]*-\s+major/);
   assert.match(dependabot, /development-dependencies:[\s\S]*-\s+major/);
-  assert.doesNotMatch(dependabot, /dependency-name:\s*koa/);
+  assert.match(dependabot, /dependency-name:\s*typescript/);
+  assert.match(dependabot, /dependency-name:\s*"@koa\/bodyparser"/);
+  assert.match(dependabot, /dependency-name:\s*koa/);
+  assert.match(dependabot, /dependency-name:\s*set-cookie-parser/);
   assert.doesNotMatch(dependabot, /dependency-name:\s*node/);
 });
 
