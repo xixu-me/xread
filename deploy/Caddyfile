@@ -1,0 +1,17 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$R_HOST} {
+  encode gzip zstd
+  reverse_proxy crawl:3001
+}
+
+{$S_HOST} {
+  encode gzip zstd
+
+  @text path /search /search/*
+  reverse_proxy @text search:3101
+
+  reverse_proxy serp:3201
+}

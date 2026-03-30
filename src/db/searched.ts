@@ -1,68 +1,66 @@
-import { Also, parseJSONText, Prop } from 'civkit';
-import { FirestoreRecord } from '../shared/lib/firestore';
-import _ from 'lodash';
+import { Also, parseJSONText, Prop } from "civkit";
+import { FirestoreRecord } from "../shared/lib/firestore";
+import _ from "lodash";
 
 @Also({
-    dictOf: Object
+  dictOf: Object,
 })
 export class SearchResult extends FirestoreRecord {
-    static override collectionName = 'searchResults';
+  static override collectionName = "searchResults";
 
-    override _id!: string;
+  override _id!: string;
 
-    @Prop({
-        required: true
-    })
-    query!: any;
+  @Prop({
+    required: true,
+  })
+  query!: any;
 
-    @Prop({
-        required: true
-    })
-    queryDigest!: string;
+  @Prop({
+    required: true,
+  })
+  queryDigest!: string;
 
-    @Prop()
-    response?: any;
+  @Prop()
+  response?: any;
 
-    @Prop()
-    createdAt!: Date;
+  @Prop()
+  createdAt!: Date;
 
-    @Prop()
-    expireAt?: Date;
+  @Prop()
+  expireAt?: Date;
 
-    [k: string]: any;
+  [k: string]: any;
 
-    static patchedFields = [
-        'query',
-        'response',
-    ];
+  static patchedFields = ["query", "response"];
 
-    static override from(input: any) {
-        for (const field of this.patchedFields) {
-            if (typeof input[field] === 'string') {
-                input[field] = parseJSONText(input[field]);
-            }
-        }
-
-        return super.from(input) as SearchResult;
+  static override from(input: any) {
+    for (const field of this.patchedFields) {
+      if (typeof input[field] === "string") {
+        input[field] = parseJSONText(input[field]);
+      }
     }
 
-    override degradeForFireStore() {
-        const copy: any = { ...this };
+    return super.from(input) as SearchResult;
+  }
 
-        for (const field of (this.constructor as typeof SearchResult).patchedFields) {
-            if (typeof copy[field] === 'object') {
-                copy[field] = JSON.stringify(copy[field]) as any;
-            }
-        }
+  override degradeForFireStore() {
+    const copy: any = { ...this };
 
-        return copy;
+    for (const field of (this.constructor as typeof SearchResult)
+      .patchedFields) {
+      if (typeof copy[field] === "object") {
+        copy[field] = JSON.stringify(copy[field]) as any;
+      }
     }
+
+    return copy;
+  }
 }
 
 export class SerperSearchResult extends SearchResult {
-    static override collectionName = 'serperSearchResults';
+  static override collectionName = "serperSearchResults";
 }
 
 export class SERPResult extends SearchResult {
-    static override collectionName = 'SERPResults';
+  static override collectionName = "SERPResults";
 }

@@ -5,31 +5,23 @@
       "name": "Attach",
       "port": 9229,
       "request": "attach",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "type": "node"
     },
     {
       "name": "Attach by Process ID",
       "processId": "${command:PickProcess}",
       "request": "attach",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "type": "node"
     },
     {
       "name": "Debug Stand Alone Crawl",
       "request": "launch",
-      "runtimeArgs": [
-        "--env-file=.secret.local"
-      ],
+      "runtimeArgs": ["--env-file=.secret.local"],
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/crawl.js",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "type": "node",
       "outputCapture": "std",
       "preLaunchTask": "Backend:build:watch",
@@ -38,17 +30,13 @@
     {
       "name": "Debug Stand Alone Crawl + Browser",
       "request": "launch",
-      "runtimeArgs": [
-        "--env-file=.secret.local"
-      ],
+      "runtimeArgs": ["--env-file=.secret.local"],
       "env": {
         "DEBUG_BROWSER": "true"
       },
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/crawl.js",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "type": "node",
       "outputCapture": "std",
       "preLaunchTask": "Backend:build:watch",
@@ -57,14 +45,10 @@
     {
       "name": "Debug Stand Alone Search",
       "request": "launch",
-      "runtimeArgs": [
-        "--env-file=.secret.local"
-      ],
+      "runtimeArgs": ["--env-file=.secret.local"],
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/search.js",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "type": "node",
       "outputCapture": "std",
       "preLaunchTask": "Backend:build:watch",
@@ -73,14 +57,10 @@
     {
       "name": "Debug Stand Alone SERP",
       "request": "launch",
-      "runtimeArgs": [
-        "--env-file=.secret.local"
-      ],
+      "runtimeArgs": ["--env-file=.secret.local"],
       "cwd": "${workspaceFolder}",
       "program": "build/stand-alone/serp.js",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
+      "skipFiles": ["<node_internals>/**"],
       "type": "node",
       "outputCapture": "std",
       "preLaunchTask": "Backend:build:watch",

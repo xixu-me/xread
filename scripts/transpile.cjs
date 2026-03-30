@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-const fs = require('node:fs');
-const path = require('node:path');
-const childProcess = require('node:child_process');
+const fs = require("node:fs");
+const path = require("node:path");
+const childProcess = require("node:child_process");
 
-const projectRoot = path.resolve(__dirname, '..');
-const tsconfigPath = path.join(projectRoot, 'tsconfig.json');
-const bootstrapPrefix = path.join(projectRoot, '.codex-cache', 'ts-compiler');
+const projectRoot = path.resolve(__dirname, "..");
+const tsconfigPath = path.join(projectRoot, "tsconfig.json");
+const bootstrapPrefix = path.join(projectRoot, ".codex-cache", "ts-compiler");
 
 function resolveTypeScript() {
   const candidatePaths = [
-    path.join(projectRoot, 'node_modules', 'typescript'),
-    path.join(bootstrapPrefix, 'node_modules', 'typescript'),
+    path.join(projectRoot, "node_modules", "typescript"),
+    path.join(bootstrapPrefix, "node_modules", "typescript"),
   ];
 
   for (const candidate of candidatePaths) {
@@ -22,20 +22,30 @@ function resolveTypeScript() {
 
   ensureDir(bootstrapPrefix);
   const install = childProcess.spawnSync(
-    'npm',
-    ['install', '--prefix', bootstrapPrefix, '--no-save', '--ignore-scripts', '--no-package-lock', 'typescript@5.5.4'],
+    "npm",
+    [
+      "install",
+      "--prefix",
+      bootstrapPrefix,
+      "--no-save",
+      "--ignore-scripts",
+      "--no-package-lock",
+      "typescript@5.5.4",
+    ],
     {
       cwd: projectRoot,
-      stdio: 'inherit',
+      stdio: "inherit",
       shell: true,
     },
   );
 
   if (install.status !== 0) {
-    throw new Error(`Unable to bootstrap TypeScript compiler (exit ${install.status ?? 'unknown'})`);
+    throw new Error(
+      `Unable to bootstrap TypeScript compiler (exit ${install.status ?? "unknown"})`,
+    );
   }
 
-  return require(path.join(bootstrapPrefix, 'node_modules', 'typescript'));
+  return require(path.join(bootstrapPrefix, "node_modules", "typescript"));
 }
 
 const ts = resolveTypeScript();
@@ -54,7 +64,9 @@ function cleanDir(dirPath) {
 function loadConfig() {
   const rawConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
   if (rawConfig.error) {
-    throw new Error(ts.flattenDiagnosticMessageText(rawConfig.error.messageText, '\n'));
+    throw new Error(
+      ts.flattenDiagnosticMessageText(rawConfig.error.messageText, "\n"),
+    );
   }
 
   const parsed = ts.parseJsonConfigFileContent(
@@ -72,24 +84,24 @@ function loadConfig() {
     },
     fileNames: parsed.fileNames.filter((fileName) => {
       const normalized = path.resolve(fileName);
-      if (!normalized.startsWith(path.join(projectRoot, 'src'))) {
+      if (!normalized.startsWith(path.join(projectRoot, "src"))) {
         return false;
       }
-      return !normalized.endsWith('.d.ts');
+      return !normalized.endsWith(".d.ts");
     }),
-    outDir: path.resolve(projectRoot, parsed.options.outDir || 'build'),
+    outDir: path.resolve(projectRoot, parsed.options.outDir || "build"),
   };
 }
 
 function outputPathFor(fileName, outDir) {
-  const relative = path.relative(path.join(projectRoot, 'src'), fileName);
+  const relative = path.relative(path.join(projectRoot, "src"), fileName);
   const ext = path.extname(relative);
   const base = relative.slice(0, relative.length - ext.length);
   return path.join(outDir, `${base}.js`);
 }
 
 function transpileFile(fileName, compilerOptions, outDir) {
-  const sourceText = fs.readFileSync(fileName, 'utf8');
+  const sourceText = fs.readFileSync(fileName, "utf8");
   const transpiled = ts.transpileModule(sourceText, {
     compilerOptions,
     fileName,
@@ -98,15 +110,18 @@ function transpileFile(fileName, compilerOptions, outDir) {
 
   const outputFile = outputPathFor(fileName, outDir);
   ensureDir(path.dirname(outputFile));
-  fs.writeFileSync(outputFile, transpiled.outputText, 'utf8');
+  fs.writeFileSync(outputFile, transpiled.outputText, "utf8");
 
   if (transpiled.sourceMapText) {
-    fs.writeFileSync(`${outputFile}.map`, transpiled.sourceMapText, 'utf8');
+    fs.writeFileSync(`${outputFile}.map`, transpiled.sourceMapText, "utf8");
   }
 
   if (transpiled.diagnostics?.length) {
     for (const diagnostic of transpiled.diagnostics) {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+      const message = ts.flattenDiagnosticMessageText(
+        diagnostic.messageText,
+        "\n",
+      );
       process.stderr.write(`[transpile warning] ${fileName}: ${message}\n`);
     }
   }
@@ -120,7 +135,9 @@ function main() {
     transpileFile(fileName, compilerOptions, outDir);
   }
 
-  process.stdout.write(`Transpiled ${fileNames.length} source files to ${outDir}\n`);
+  process.stdout.write(
+    `Transpiled ${fileNames.length} source files to ${outDir}\n`,
+  );
 }
 
 try {

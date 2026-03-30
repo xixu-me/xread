@@ -1,90 +1,161 @@
 # Xread
 
-Your LLMs deserve better input.
+**_[汉语](./README.zh.md)_**
 
-Xread does two things:
-- **Read**: Convert any URL into an **LLM-friendly** representation with `https://r.example.com/https://your.url`.
-- **Search**: Search the web with `https://s.example.com/your+query` and return summarized results in an LLM-friendly format.
+**Your LLMs deserve better input.**
 
-Check out the placeholder demo at [https://example.com/xread#demo](https://example.com/xread#demo).
+Turn messy webpages into clean Markdown, run web search for LLMs, and self-host the whole stack.
 
-## Usage
+Xread is an open-source, self-hosted web ingestion service for LLM workflows. It gives you three main surfaces:
 
-### Read a single URL
+- `crawl`: fetch a URL and turn it into readable Markdown
+- `search`: run a search and return text that is easy to paste into a prompt
+- `serp`: run a search and return structured JSON
 
-Prepend `https://r.example.com/` to any URL:
+It is a standalone fork of the public [Jina AI Reader](https://jina.ai/reader) repository in [jina-ai/reader](https://github.com/jina-ai/reader), adapted for self-hosted use without the original internal `thinapps-shared` dependency.
 
-[https://r.example.com/https://en.wikipedia.org/wiki/Artificial_intelligence](https://r.example.com/https://en.wikipedia.org/wiki/Artificial_intelligence)
+## What This Repository Adds
 
-### Search the web
+- Self-hosted packaging around the upstream Reader repository
+- Local-first storage and cache persistence
+- OCI image published to GHCR
+- Ready-to-run reverse-proxy deployment assets with the same image, Compose stack, and environment model across Docker, Podman, and `nerdctl`
+- CI, CodeQL, dependency governance, and container publishing already wired up
 
-Prepend `https://s.example.com/` to a URL-encoded search query:
+## Quick Look
 
-[https://s.example.com/Who%20will%20win%202024%20US%20presidential%20election%3F](https://s.example.com/Who%20will%20win%202024%20US%20presidential%20election%3F)
+These examples use the published image directly on its HTTP/1 port (`8081`). The deployment guide later covers the Compose backend loopback ports (`3001`, `3101`, `3201`) and the public reverse-proxy hostnames.
 
-Behind the scenes, Xread fetches relevant pages and converts them into a format that is easier for downstream LLMs and agent systems to consume.
-
-### In-site search
-
-Use repeated `site` parameters to constrain results:
-
-```bash
-curl 'https://s.example.com/When%20was%20example.com%20founded%3F?site=example.com&site=github.com'
-```
-
-### Interactive code builder
-
-Use the placeholder builder URL:
-
-[https://example.com/xread#apiform](https://example.com/xread#apiform)
-
-## Request headers
-
-The service behavior can be controlled via headers:
-
-- `x-with-generated-alt: true` enables automatic image alt-text generation.
-- `x-set-cookie` forwards cookies.
-- `x-respond-with` supports `markdown`, `html`, `text`, `screenshot`, and related formats.
-- `x-proxy-url` selects a custom proxy.
-- `x-cache-tolerance` adjusts cache tolerance in seconds.
-- `x-no-cache: true` bypasses cached content.
-- `x-target-selector` narrows extraction to a CSS selector.
-- `x-wait-for-selector` waits until a CSS selector appears.
-
-## SPA fetching
-
-For hash-based routing, use `POST` with the target URL in the body:
+### Crawl a page
 
 ```bash
-curl -X POST 'https://r.example.com/' -d 'url=https://example.com/#/route'
+curl "http://127.0.0.1:8081/http://example.com"
 ```
 
-## Streaming mode
+### Search the web as text
 
 ```bash
-curl -H "Accept: text/event-stream" https://r.example.com/https://en.m.wikipedia.org/wiki/Main_Page
+curl "http://127.0.0.1:8081/search?q=example%20domain&num=5&provider=google"
 ```
 
-Streaming responses return progressively more complete content chunks.
-
-## JSON mode
+### Search the web as JSON
 
 ```bash
-curl -H "Accept: application/json" https://r.example.com/https://en.m.wikipedia.org/wiki/Main_Page
+curl "http://127.0.0.1:8081/?q=example%20domain&num=5&provider=google"
 ```
 
-For `s.example.com`, JSON mode returns a list of search results shaped like `{'title', 'content', 'url'}`.
+## Quick Start
 
-## Generated alt
+### Run locally
 
 ```bash
-curl -H "X-With-Generated-Alt: true" https://r.example.com/https://en.m.wikipedia.org/wiki/Main_Page
+npm ci
+npm run build
+npm start
 ```
 
-## Standalone Notes
+That starts the `crawl` server. The standalone services are:
 
-This repository now carries its shared infrastructure helpers in `src/shared/` so the stand-alone crawl/search/serp entrypoints can build and run without private dependencies.
+- `build/stand-alone/crawl.js`
+- `build/stand-alone/search.js`
+- `build/stand-alone/serp.js`
 
-## License
+### Run with a container engine
 
-This repository is distributed under [Apache-2.0](./LICENSE). See [NOTICE](./NOTICE) for modification and attribution details.
+```bash
+docker run --rm -p 8081:8081 ghcr.io/xixu-me/xread:latest
+```
+
+The published image defaults to `crawl`. Any OCI-compatible engine can run it. The examples below use Docker syntax. To run the other entrypoints:
+
+```bash
+docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
+docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
+```
+
+## Built for Self-Hosting
+
+- Chrome is bundled in the image for page rendering
+- HTTP/2 cleartext (`h2c`) is supported internally
+- HTTP/1 fallback is available on `PORT + 1`
+- If no paid search provider is configured, `search` and `serp` still work through the standalone fallback path
+
+Published image:
+
+- `ghcr.io/xixu-me/xread:latest`
+
+For production, pin a digest instead of following `latest`.
+
+## Deploy It
+
+The repository includes a complete reverse-proxy deployment example:
+
+- [Deployment guide](./docs/deploy.md)
+- [Container engine guide](./docs/container-engines.md)
+- [Compose stack](./deploy/docker-compose.yml)
+- [`Caddyfile`](./deploy/Caddyfile)
+- [Environment template](./deploy/.env.example)
+
+The deployment docs use the same image, Compose stack, and environment variables across Docker, Podman, and `nerdctl`/containerd.
+
+The documented deployment pattern is:
+
+- `r.your-domain.example` -> `crawl`
+- `s.your-domain.example/search` -> `search`
+- `s.your-domain.example/?q=...` -> `serp`
+
+## Configuration
+
+The standalone build reads configuration from environment variables.
+
+The deployment template in [`deploy/.env.example`](./deploy/.env.example) includes the shared deployment variables. The full runtime surface is:
+
+| Variable                          | Purpose                                                                     |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `PORT`                            | Main service port. HTTP/1 fallback listens on `PORT + 1`.                   |
+| `PUBLIC_HTTP_PORT`                | Public HTTP port exposed by the reverse proxy in the Compose deployment.    |
+| `PUBLIC_HTTPS_PORT`               | Public HTTPS port exposed by the reverse proxy in the Compose deployment.   |
+| `XREAD_LOOPBACK_HOST`             | Host IP used for the backend loopback ports in the Compose deployment.      |
+| `XREAD_CRAWL_LOOPBACK_PORT`       | Host loopback port for the `crawl` backend.                                 |
+| `XREAD_SEARCH_LOOPBACK_PORT`      | Host loopback port for the `search` backend.                                |
+| `XREAD_SERP_LOOPBACK_PORT`        | Host loopback port for the `serp` backend.                                  |
+| `STORAGE_ROOT`                    | Root directory for stored artifacts such as snapshots and generated assets. |
+| `LOCAL_DB_ROOT`                   | Root directory for local metadata, caches, and lightweight persistence.     |
+| `SERPER_SEARCH_API_KEY`           | Enables Serper-backed Google/Bing search.                                   |
+| `BRAVE_SEARCH_API_KEY`            | Enables Brave Search integration where supported.                           |
+| `CLOUD_FLARE_API_KEY`             | Enables Cloudflare-backed capabilities where configured.                    |
+| `LOCAL_PROXY_URLS`                | Optional proxy pool for outbound requests.                                  |
+| `OVERRIDE_CHROME_EXECUTABLE_PATH` | Optional override for the Chrome executable path.                           |
+
+Useful request controls for crawling include:
+
+- `x-no-cache`
+- `x-target-selector`
+- `x-wait-for-selector`
+- `x-respond-with`
+- `x-timeout`
+
+## Build and Verify
+
+```bash
+npm run lint
+npm run security:audit
+npm run test:ci
+npm run build
+```
+
+The image build also dry-runs all three standalone servers.
+
+## Repository Layout
+
+```text
+src/api/           RPC hosts and public HTTP-facing methods
+src/stand-alone/   standalone server entrypoints
+src/services/      crawling, formatting, search, and runtime services
+src/shared/        local shared primitives for storage, rate limits, and config
+public/            static assets
+deploy/            ready-to-run production deployment templates
+docs/              operational documentation
+scripts/           build, licensing, and security helper scripts
+tests/             regression tests for build, runtime, and automation
+```

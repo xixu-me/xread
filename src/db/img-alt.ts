@@ -1,42 +1,42 @@
-import { Also, Prop } from 'civkit';
-import { FirestoreRecord } from '../shared/lib/firestore';
-import _ from 'lodash';
+import { Also, Prop } from "civkit";
+import { FirestoreRecord } from "../shared/lib/firestore";
+import _ from "lodash";
 
 @Also({
-    dictOf: Object
+  dictOf: Object,
 })
 export class ImgAlt extends FirestoreRecord {
-    static override collectionName = 'imgAlts';
+  static override collectionName = "imgAlts";
 
-    override _id!: string;
+  override _id!: string;
 
-    @Prop({
-        required: true
-    })
-    src!: string;
+  @Prop({
+    required: true,
+  })
+  src!: string;
 
-    @Prop({
-        required: true
-    })
-    urlDigest!: string;
+  @Prop({
+    required: true,
+  })
+  urlDigest!: string;
 
-    @Prop()
-    width?: number;
+  @Prop()
+  width?: number;
 
-    @Prop()
-    height?: number;
+  @Prop()
+  height?: number;
 
-    @Prop()
-    generatedAlt?: string;
+  @Prop()
+  generatedAlt?: string;
 
-    @Prop()
-    originalAlt?: string;
+  @Prop()
+  originalAlt?: string;
 
-    @Prop()
-    createdAt!: Date;
+  @Prop()
+  createdAt!: Date;
 
-    @Prop()
-    expireAt?: Date;
+  @Prop()
+  expireAt?: Date;
 
-    [k: string]: any;
+  [k: string]: any;
 }

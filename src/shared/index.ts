@@ -1,2 +1,1 @@
-export { ServiceBadAttemptError } from '../services/errors';
-
+export { ServiceBadAttemptError } from "../services/errors";

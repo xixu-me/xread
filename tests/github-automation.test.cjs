@@ -1,56 +1,65 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
-const projectRoot = path.resolve(__dirname, '..');
+const projectRoot = path.resolve(__dirname, "..");
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
+  return fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
 }
 
-test('legacy Cloud Run deployment workflow has been removed', () => {
-  const legacyWorkflow = path.join(projectRoot, '.github', 'workflows', 'cd.yml');
+test("legacy Cloud Run deployment workflow has been removed", () => {
+  const legacyWorkflow = path.join(
+    projectRoot,
+    ".github",
+    "workflows",
+    "cd.yml",
+  );
 
   assert.equal(fs.existsSync(legacyWorkflow), false);
 });
 
-test('repository automation files exist for CI, container publish, and Dependabot', () => {
+test("repository automation files exist for CI, container publish, and Dependabot", () => {
   const expectedFiles = [
-    'eslint.config.cjs',
-    '.github/workflows/ci.yml',
-    '.github/workflows/codeql.yml',
-    '.github/workflows/image.yml',
-    '.github/workflows/dependabot-auto-merge.yml',
-    '.github/dependabot.yml',
+    "eslint.config.cjs",
+    ".github/workflows/ci.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/image.yml",
+    ".github/workflows/dependabot-auto-merge.yml",
+    ".github/dependabot.yml",
   ];
 
   for (const relativePath of expectedFiles) {
-    assert.equal(fs.existsSync(path.join(projectRoot, relativePath)), true, `${relativePath} should exist`);
+    assert.equal(
+      fs.existsSync(path.join(projectRoot, relativePath)),
+      true,
+      `${relativePath} should exist`,
+    );
   }
 });
 
-test('container image workflow publishes to GHCR instead of legacy GCP registries', () => {
-  const workflow = read('.github/workflows/image.yml');
+test("container image workflow publishes to GHCR instead of legacy GCP registries", () => {
+  const workflow = read(".github/workflows/image.yml");
 
   assert.match(workflow, /ghcr\.io/);
   assert.doesNotMatch(workflow, /gcloud|us-docker\.pkg\.dev/);
 });
 
-test('container image publishing waits for CI instead of running on pull requests directly', () => {
-  const workflow = read('.github/workflows/image.yml');
+test("container image publishing waits for CI instead of running on pull requests directly", () => {
+  const workflow = read(".github/workflows/image.yml");
 
   assert.match(workflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.doesNotMatch(workflow, /pull_request:/);
   assert.doesNotMatch(workflow, /workflow_run:/);
 });
 
-test('workflows opt into Node 24 for JavaScript-based GitHub Actions', () => {
+test("workflows opt into Node 24 for JavaScript-based GitHub Actions", () => {
   const workflows = [
-    read('.github/workflows/ci.yml'),
-    read('.github/workflows/codeql.yml'),
-    read('.github/workflows/image.yml'),
-    read('.github/workflows/dependabot-auto-merge.yml'),
+    read(".github/workflows/ci.yml"),
+    read(".github/workflows/codeql.yml"),
+    read(".github/workflows/image.yml"),
+    read(".github/workflows/dependabot-auto-merge.yml"),
   ];
 
   for (const workflow of workflows) {
@@ -58,8 +67,8 @@ test('workflows opt into Node 24 for JavaScript-based GitHub Actions', () => {
   }
 });
 
-test('CodeQL workflow uses advanced setup with repository-managed configuration', () => {
-  const workflow = read('.github/workflows/codeql.yml');
+test("CodeQL workflow uses advanced setup with repository-managed configuration", () => {
+  const workflow = read(".github/workflows/codeql.yml");
 
   assert.match(workflow, /uses:\s*actions\/checkout@v\d+/);
   assert.match(workflow, /uses:\s*github\/codeql-action\/init@v4/);
@@ -68,16 +77,16 @@ test('CodeQL workflow uses advanced setup with repository-managed configuration'
   assert.match(workflow, /language:\s*javascript-typescript/);
 });
 
-test('dependabot config covers npm, docker, and github-actions updates', () => {
-  const dependabot = read('.github/dependabot.yml');
+test("dependabot config covers npm, docker, and github-actions updates", () => {
+  const dependabot = read(".github/dependabot.yml");
 
   assert.match(dependabot, /package-ecosystem: npm/);
   assert.match(dependabot, /package-ecosystem: docker/);
   assert.match(dependabot, /package-ecosystem: github-actions/);
 });
 
-test('dependabot groups include major upgrades instead of suppressing them', () => {
-  const dependabot = read('.github/dependabot.yml');
+test("dependabot groups include major upgrades instead of suppressing them", () => {
+  const dependabot = read(".github/dependabot.yml");
 
   assert.match(dependabot, /production-dependencies:[\s\S]*-\s+major/);
   assert.match(dependabot, /development-dependencies:[\s\S]*-\s+major/);
@@ -88,24 +97,24 @@ test('dependabot groups include major upgrades instead of suppressing them', () 
   assert.doesNotMatch(dependabot, /dependency-name:\s*node/);
 });
 
-test('CI workflow runs lint before tests and build', () => {
-  const workflow = read('.github/workflows/ci.yml');
+test("CI workflow runs lint before tests and build", () => {
+  const workflow = read(".github/workflows/ci.yml");
 
   assert.match(workflow, /run: npm run lint/);
   assert.match(workflow, /run: npm run test:ci/);
   assert.match(workflow, /run: npm run build/);
 });
 
-test('CI validates Docker builds for pull requests without publishing images', () => {
-  const workflow = read('.github/workflows/ci.yml');
+test("CI validates Docker builds for pull requests without publishing images", () => {
+  const workflow = read(".github/workflows/ci.yml");
 
   assert.match(workflow, /name: Validate container build/);
   assert.match(workflow, /if: github\.event_name == 'pull_request'/);
   assert.match(workflow, /push: false/);
 });
 
-test('dependabot auto-merge workflow updates stale branches before enabling auto-merge', () => {
-  const workflow = read('.github/workflows/dependabot-auto-merge.yml');
+test("dependabot auto-merge workflow updates stale branches before enabling auto-merge", () => {
+  const workflow = read(".github/workflows/dependabot-auto-merge.yml");
 
   assert.match(workflow, /gh pr update-branch/);
   assert.match(workflow, /mergeStateStatus/);
@@ -114,8 +123,8 @@ test('dependabot auto-merge workflow updates stale branches before enabling auto
   assert.match(workflow, /gh pr list/);
 });
 
-test('Dockerfile is self-contained and no longer relies on curl-impersonate', () => {
-  const dockerfile = read('Dockerfile');
+test("Dockerfile is self-contained and no longer relies on curl-impersonate", () => {
+  const dockerfile = read("Dockerfile");
 
   assert.match(dockerfile, /FROM node:22-bookworm-slim/);
   assert.match(dockerfile, /PUPPETEER_SKIP_DOWNLOAD=true/);
