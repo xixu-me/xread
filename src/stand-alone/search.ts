@@ -19,6 +19,7 @@ import { GlobalLogger } from '../services/logger';
 import { AsyncLocalContext } from '../services/async-context';
 import finalizer, { Finalizer } from '../services/finalizer';
 import koaCompress from 'koa-compress';
+import { STANDALONE_BOOT_TIMEOUT_MS } from '../services/boot-timeouts';
 
 @singleton()
 export class SearchStandAloneServer extends KoaServer {
@@ -51,7 +52,7 @@ export class SearchStandAloneServer extends KoaServer {
 
     override async init() {
         await this.walkForAssets();
-        await this.dependencyReady();
+        await this.dependencyReady(STANDALONE_BOOT_TIMEOUT_MS);
 
         for (const [k, v] of this.registry.conf.entries()) {
             if (v.tags?.includes('crawl')) {
