@@ -121,6 +121,10 @@ export class SerpHost extends RPCHost {
         this.emit('ready');
     }
 
+    override dependencyReady(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS) {
+        return super.dependencyReady(timeoutMilliseconds);
+    }
+
     @Method({
         name: 'searchIndex',
         ext: {
