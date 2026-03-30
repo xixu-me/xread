@@ -6,8 +6,11 @@ import { BraveSearchHTTP, WebSearchQueryParams } from '../shared/3rd-party/brave
 import { GEOIP_SUPPORTED_LANGUAGES, GeoIPService } from './geoip';
 import { AsyncLocalContext } from './async-context';
 import { WebSearchOptionalHeaderOptions } from '../shared/3rd-party/brave-types';
-import type { Request, Response } from 'express';
 import { BlackHoleDetector } from './blackhole-detector';
+
+type HeaderReadableRequest = {
+    get(name: string): string | undefined;
+};
 
 @singleton()
 export class BraveSearchService extends AsyncService {
@@ -163,8 +166,7 @@ export class BraveSearchExplicitOperatorsDto extends AutoCastable {
     static override from(input: any) {
         const instance = super.from(input) as BraveSearchExplicitOperatorsDto;
         const ctx = Reflect.get(input, RPC_CALL_ENVIRONMENT) as {
-            req: Request,
-            res: Response,
+            req: HeaderReadableRequest,
         } | undefined;
 
         const params = ['ext', 'filetype', 'inbody', 'intitle', 'inpage', 'lang', 'loc', 'site'];

@@ -88,10 +88,17 @@ test('standalone services use extended boot timeouts for cold starts', () => {
   assert.match(bootTimeouts, /STANDALONE_BOOT_TIMEOUT_MS = 90_000/);
   assert.match(bootTimeouts, /SERP_BOOT_TIMEOUT_MS = 90_000/);
   assert.match(crawlHost, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(crawlHost, /override dependencyReady\(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS\)/);
   assert.match(searcherHost, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(searcherHost, /override dependencyReady\(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS\)/);
   assert.match(serpHost, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(serpHost, /override dependencyReady\(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS\)/);
   assert.match(crawlServer, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(crawlServer, /override dependencyReady\(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS\)/);
   assert.match(searchServer, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(searchServer, /override dependencyReady\(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS\)/);
   assert.match(serpServer, /dependencyReady\(STANDALONE_BOOT_TIMEOUT_MS\)/);
+  assert.match(serpServer, /override dependencyReady\(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS\)/);
   assert.match(googleSerp, /dependencyReady\(SERP_BOOT_TIMEOUT_MS\)/);
+  assert.match(googleSerp, /override dependencyReady\(timeoutMilliseconds = SERP_BOOT_TIMEOUT_MS\)/);
 });
