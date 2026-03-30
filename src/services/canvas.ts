@@ -1,213 +1,279 @@
-import { singleton, container } from 'tsyringe';
-import { AsyncService, mimeOf, ParamValidationError, SubmittedDataMalformedError, /* downloadFile */ } from 'civkit';
-import { readFile } from 'fs/promises';
+import { singleton, container } from "tsyringe";
+import {
+  AsyncService,
+  mimeOf,
+  ParamValidationError,
+  SubmittedDataMalformedError /* downloadFile */,
+} from "civkit";
+import { readFile } from "fs/promises";
 
-import type canvas from '@napi-rs/canvas';
-export type { Canvas, Image } from '@napi-rs/canvas';
+import type canvas from "@napi-rs/canvas";
+export type { Canvas, Image } from "@napi-rs/canvas";
 
-import { GlobalLogger } from './logger';
-import { TempFileManager } from './temp-file';
+import { GlobalLogger } from "./logger";
+import { TempFileManager } from "./temp-file";
 
-import { isMainThread } from 'worker_threads';
-import type { svg2png } from 'svg2png-wasm' with { 'resolution-mode': 'import' };
-import path from 'path';
-import { Threaded } from './threaded';
+import { isMainThread } from "worker_threads";
+import type { svg2png } from "svg2png-wasm" with {
+  "resolution-mode": "import",
+};
+import path from "path";
+import { Threaded } from "./threaded";
 
 const downloadFile = async (uri: string) => {
-    const resp = await fetch(uri);
-    if (!(resp.ok && resp.body)) {
-        throw new Error(`Unexpected response ${resp.statusText}`);
-    }
-    const contentLength = parseInt(resp.headers.get('content-length') || '0');
-    if (contentLength > 1024 * 1024 * 100) {
-        throw new Error('File too large');
-    }
-    const buff = await resp.arrayBuffer();
+  const resp = await fetch(uri);
+  if (!(resp.ok && resp.body)) {
+    throw new Error(`Unexpected response ${resp.statusText}`);
+  }
+  const contentLength = parseInt(resp.headers.get("content-length") || "0");
+  if (contentLength > 1024 * 1024 * 100) {
+    throw new Error("File too large");
+  }
+  const buff = await resp.arrayBuffer();
 
-    return { buff, contentType: resp.headers.get('content-type') };
+  return { buff, contentType: resp.headers.get("content-type") };
 };
 
 @singleton()
 export class CanvasService extends AsyncService {
+  logger = this.globalLogger.child({ service: this.constructor.name });
+  svg2png!: typeof svg2png;
+  canvas!: typeof canvas;
 
-    logger = this.globalLogger.child({ service: this.constructor.name });
-    svg2png!: typeof svg2png;
-    canvas!: typeof canvas;
+  constructor(
+    protected temp: TempFileManager,
+    protected globalLogger: GlobalLogger,
+  ) {
+    super(...arguments);
+  }
 
-    constructor(
-        protected temp: TempFileManager,
-        protected globalLogger: GlobalLogger,
-    ) {
-        super(...arguments);
+  protected async loadBundledFont() {
+    const bundledFontPath = path.resolve(
+      __dirname,
+      "../../licensed/SourceHanSansSC-Regular.otf",
+    );
+
+    try {
+      return {
+        family: "Source Han Sans SC",
+        data: await readFile(bundledFontPath),
+      };
+    } catch (err: any) {
+      if (err?.code === "ENOENT") {
+        this.logger.warn(
+          `Bundled font asset unavailable, falling back to system fonts`,
+          {
+            err: { code: "ENOENT", path: bundledFontPath },
+          },
+        );
+        return {
+          family: "WenQuanYi Zen Hei",
+          data: undefined,
+        };
+      }
+
+      throw err;
     }
+  }
 
-    protected async loadBundledFont() {
-        const bundledFontPath = path.resolve(__dirname, '../../licensed/SourceHanSansSC-Regular.otf');
+  override async init() {
+    await this.dependencyReady();
+    if (!isMainThread) {
+      const { createSvg2png, initialize } = require("svg2png-wasm");
+      const wasmBuff = await readFile(
+        path.resolve(
+          path.dirname(require.resolve("svg2png-wasm")),
+          "../svg2png_wasm_bg.wasm",
+        ),
+      );
+      const font = await this.loadBundledFont();
+      await initialize(wasmBuff);
+      this.svg2png = createSvg2png({
+        fonts: font.data ? [Uint8Array.from(font.data)] : [],
+        defaultFontFamily: {
+          serifFamily: font.family,
+          sansSerifFamily: font.family,
+          cursiveFamily: font.family,
+          fantasyFamily: font.family,
+          monospaceFamily: font.family,
+        },
+      });
+    }
+    this.canvas = require("@napi-rs/canvas");
 
-        try {
-            return {
-                family: 'Source Han Sans SC',
-                data: await readFile(bundledFontPath),
-            };
-        } catch (err: any) {
-            if (err?.code === 'ENOENT') {
-                this.logger.warn(`Bundled font asset unavailable, falling back to system fonts`, {
-                    err: { code: 'ENOENT', path: bundledFontPath },
-                });
-                return {
-                    family: 'WenQuanYi Zen Hei',
-                    data: undefined,
-                };
-            }
+    this.emit("ready");
+  }
 
-            throw err;
+  @Threaded()
+  async renderSvgToPng(svgContent: string) {
+    return this.svg2png(svgContent, { backgroundColor: "#D3D3D3" });
+  }
+
+  protected async _loadImage(input: string | Buffer) {
+    let buff;
+    let contentType;
+    do {
+      if (typeof input === "string") {
+        if (input.startsWith("data:")) {
+          const firstComma = input.indexOf(",");
+          const header = input.slice(0, firstComma);
+          const data = input.slice(firstComma + 1);
+          const encoding = header.split(";")[1];
+          contentType = header.split(";")[0].split(":")[1];
+          if (encoding?.startsWith("base64")) {
+            buff = Buffer.from(data, "base64");
+          } else {
+            buff = Buffer.from(decodeURIComponent(data), "utf-8");
+          }
+          break;
         }
-    }
-
-    override async init() {
-        await this.dependencyReady();
-        if (!isMainThread) {
-            const { createSvg2png, initialize } = require('svg2png-wasm');
-            const wasmBuff = await readFile(path.resolve(path.dirname(require.resolve('svg2png-wasm')), '../svg2png_wasm_bg.wasm'));
-            const font = await this.loadBundledFont();
-            await initialize(wasmBuff);
-            this.svg2png = createSvg2png({
-                fonts: font.data ? [Uint8Array.from(font.data)] : [],
-                defaultFontFamily: {
-                    serifFamily: font.family,
-                    sansSerifFamily: font.family,
-                    cursiveFamily: font.family,
-                    fantasyFamily: font.family,
-                    monospaceFamily: font.family,
-                }
-            });
+        if (input.startsWith("http")) {
+          const r = await downloadFile(input);
+          buff = Buffer.from(r.buff);
+          contentType = r.contentType;
+          break;
         }
-        this.canvas = require('@napi-rs/canvas');
+      }
+      if (Buffer.isBuffer(input)) {
+        buff = input;
+        const mime = await mimeOf(buff);
+        contentType = `${mime.mediaType}/${mime.subType}`;
+        break;
+      }
+      throw new ParamValidationError("Invalid input");
+    } while (false);
 
-        this.emit('ready');
+    if (!buff) {
+      throw new ParamValidationError("Invalid input");
     }
 
-    @Threaded()
-    async renderSvgToPng(svgContent: string,) {
-        return this.svg2png(svgContent, { backgroundColor: '#D3D3D3' });
+    if (contentType?.includes("svg")) {
+      buff = await this.renderSvgToPng(buff.toString("utf-8"));
     }
 
-    protected async _loadImage(input: string | Buffer) {
-        let buff;
-        let contentType;
-        do {
-            if (typeof input === 'string') {
-                if (input.startsWith('data:')) {
-                    const firstComma = input.indexOf(',');
-                    const header = input.slice(0, firstComma);
-                    const data = input.slice(firstComma + 1);
-                    const encoding = header.split(';')[1];
-                    contentType = header.split(';')[0].split(':')[1];
-                    if (encoding?.startsWith('base64')) {
-                        buff = Buffer.from(data, 'base64');
-                    } else {
-                        buff = Buffer.from(decodeURIComponent(data), 'utf-8');
-                    }
-                    break;
-                }
-                if (input.startsWith('http')) {
-                    const r = await downloadFile(input);
-                    buff = Buffer.from(r.buff);
-                    contentType = r.contentType;
-                    break;
-                }
-            }
-            if (Buffer.isBuffer(input)) {
-                buff = input;
-                const mime = await mimeOf(buff);
-                contentType = `${mime.mediaType}/${mime.subType}`;
-                break;
-            }
-            throw new ParamValidationError('Invalid input');
-        } while (false);
+    const img = await this.canvas.loadImage(buff);
+    Reflect.set(img, "contentType", contentType);
 
-        if (!buff) {
-            throw new ParamValidationError('Invalid input');
-        }
+    return img;
+  }
 
-        if (contentType?.includes('svg')) {
-            buff = await this.renderSvgToPng(buff.toString('utf-8'));
-        }
+  async loadImage(uri: string | Buffer) {
+    const t0 = Date.now();
+    try {
+      const theImage = await this._loadImage(uri);
+      const t1 = Date.now();
+      this.logger.debug(`Image loaded in ${t1 - t0}ms`);
 
-        const img = await this.canvas.loadImage(buff);
-        Reflect.set(img, 'contentType', contentType);
+      return theImage;
+    } catch (err: any) {
+      if (
+        err?.message?.includes("Unsupported image type") ||
+        err?.message?.includes("unsupported")
+      ) {
+        this.logger.warn(`Failed to load image ${uri.slice(0, 128)}`, { err });
+        throw new SubmittedDataMalformedError(
+          `Unknown image format for ${uri.slice(0, 128)}`,
+        );
+      }
+      throw err;
+    }
+  }
 
-        return img;
+  fitImageToSquareBox(
+    image: canvas.Image | canvas.Canvas,
+    size: number = 1024,
+  ) {
+    // this.logger.debug(`Fitting image(${ image.width }x${ image.height }) to ${ size } box`);
+    // const t0 = Date.now();
+    if (image.width <= size && image.height <= size) {
+      if (image instanceof this.canvas.Canvas) {
+        return image;
+      }
+      const canvasInstance = this.canvas.createCanvas(
+        image.width,
+        image.height,
+      );
+      const ctx = canvasInstance.getContext("2d");
+      ctx.drawImage(
+        image,
+        0,
+        0,
+        image.width,
+        image.height,
+        0,
+        0,
+        canvasInstance.width,
+        canvasInstance.height,
+      );
+      // this.logger.debug(`No need to resize, copied to canvas in ${ Date.now() - t0 } ms`);
+
+      return canvasInstance;
     }
 
-    async loadImage(uri: string | Buffer) {
-        const t0 = Date.now();
-        try {
-            const theImage = await this._loadImage(uri);
-            const t1 = Date.now();
-            this.logger.debug(`Image loaded in ${t1 - t0}ms`);
+    const aspectRatio = image.width / image.height;
 
-            return theImage;
-        } catch (err: any) {
-            if (err?.message?.includes('Unsupported image type') || err?.message?.includes('unsupported')) {
-                this.logger.warn(`Failed to load image ${uri.slice(0, 128)}`, { err });
-                throw new SubmittedDataMalformedError(`Unknown image format for ${uri.slice(0, 128)}`);
-            }
-            throw err;
-        }
-    }
+    const resizedWidth = Math.round(
+      aspectRatio > 1 ? size : size * aspectRatio,
+    );
+    const resizedHeight = Math.round(
+      aspectRatio > 1 ? size / aspectRatio : size,
+    );
 
-    fitImageToSquareBox(image: canvas.Image | canvas.Canvas, size: number = 1024) {
-        // this.logger.debug(`Fitting image(${ image.width }x${ image.height }) to ${ size } box`);
-        // const t0 = Date.now();
-        if (image.width <= size && image.height <= size) {
-            if (image instanceof this.canvas.Canvas) {
-                return image;
-            }
-            const canvasInstance = this.canvas.createCanvas(image.width, image.height);
-            const ctx = canvasInstance.getContext('2d');
-            ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvasInstance.width, canvasInstance.height);
-            // this.logger.debug(`No need to resize, copied to canvas in ${ Date.now() - t0 } ms`);
+    const canvasInstance = this.canvas.createCanvas(
+      resizedWidth,
+      resizedHeight,
+    );
+    const ctx = canvasInstance.getContext("2d");
+    ctx.drawImage(
+      image,
+      0,
+      0,
+      image.width,
+      image.height,
+      0,
+      0,
+      resizedWidth,
+      resizedHeight,
+    );
+    // this.logger.debug(`Resized to ${ resizedWidth }x${ resizedHeight } in ${ Date.now() - t0 } ms`);
 
-            return canvasInstance;
-        }
+    return canvasInstance;
+  }
 
-        const aspectRatio = image.width / image.height;
+  corpImage(
+    image: canvas.Image | canvas.Canvas,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ) {
+    // this.logger.debug(`Cropping image(${ image.width }x${ image.height }) to ${ w }x${ h } at ${ x },${ y } `);
+    // const t0 = Date.now();
+    const canvasInstance = this.canvas.createCanvas(w, h);
+    const ctx = canvasInstance.getContext("2d");
+    ctx.drawImage(image, x, y, w, h, 0, 0, w, h);
+    // this.logger.debug(`Crop complete in ${ Date.now() - t0 } ms`);
 
-        const resizedWidth = Math.round(aspectRatio > 1 ? size : size * aspectRatio);
-        const resizedHeight = Math.round(aspectRatio > 1 ? size / aspectRatio : size);
+    return canvasInstance;
+  }
 
-        const canvasInstance = this.canvas.createCanvas(resizedWidth, resizedHeight);
-        const ctx = canvasInstance.getContext('2d');
-        ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, resizedWidth, resizedHeight);
-        // this.logger.debug(`Resized to ${ resizedWidth }x${ resizedHeight } in ${ Date.now() - t0 } ms`);
+  canvasToDataUrl(
+    canvas: canvas.Canvas,
+    mimeType?: "image/png" | "image/jpeg",
+  ) {
+    // this.logger.debug(`Exporting canvas(${ canvas.width }x${ canvas.height })`);
+    // const t0 = Date.now();
+    return canvas.toDataURLAsync((mimeType || "image/png") as "image/png");
+  }
 
-        return canvasInstance;
-    }
-
-    corpImage(image: canvas.Image | canvas.Canvas, x: number, y: number, w: number, h: number) {
-        // this.logger.debug(`Cropping image(${ image.width }x${ image.height }) to ${ w }x${ h } at ${ x },${ y } `);
-        // const t0 = Date.now();
-        const canvasInstance = this.canvas.createCanvas(w, h);
-        const ctx = canvasInstance.getContext('2d');
-        ctx.drawImage(image, x, y, w, h, 0, 0, w, h);
-        // this.logger.debug(`Crop complete in ${ Date.now() - t0 } ms`);
-
-        return canvasInstance;
-    }
-
-    canvasToDataUrl(canvas: canvas.Canvas, mimeType?: 'image/png' | 'image/jpeg') {
-        // this.logger.debug(`Exporting canvas(${ canvas.width }x${ canvas.height })`);
-        // const t0 = Date.now();
-        return canvas.toDataURLAsync((mimeType || 'image/png') as 'image/png');
-    }
-
-    async canvasToBuffer(canvas: canvas.Canvas, mimeType?: 'image/png' | 'image/jpeg') {
-        // this.logger.debug(`Exporting canvas(${ canvas.width }x${ canvas.height })`);
-        // const t0 = Date.now();
-        return canvas.toBuffer((mimeType || 'image/png') as 'image/png');
-    }
-
+  async canvasToBuffer(
+    canvas: canvas.Canvas,
+    mimeType?: "image/png" | "image/jpeg",
+  ) {
+    // this.logger.debug(`Exporting canvas(${ canvas.width }x${ canvas.height })`);
+    // const t0 = Date.now();
+    return canvas.toBuffer((mimeType || "image/png") as "image/png");
+  }
 }
 
 const instance = container.resolve(CanvasService);

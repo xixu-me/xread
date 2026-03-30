@@ -1,12 +1,16 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
-const projectRoot = path.resolve(__dirname, '..');
-const baselinePath = path.join(projectRoot, 'security', 'npm-audit-baseline.json');
-const reportDirectory = path.join(projectRoot, 'security-reports');
-const summaryJsonPath = path.join(reportDirectory, 'npm-audit-summary.json');
-const summaryMarkdownPath = path.join(reportDirectory, 'npm-audit-summary.md');
+const projectRoot = path.resolve(__dirname, "..");
+const baselinePath = path.join(
+  projectRoot,
+  "security",
+  "npm-audit-baseline.json",
+);
+const reportDirectory = path.join(projectRoot, "security-reports");
+const summaryJsonPath = path.join(reportDirectory, "npm-audit-summary.json");
+const summaryMarkdownPath = path.join(reportDirectory, "npm-audit-summary.md");
 
 const severityRank = {
   info: 0,
@@ -17,29 +21,32 @@ const severityRank = {
 };
 
 function npmCommand() {
-  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function readBaseline() {
-  const raw = fs.readFileSync(baselinePath, 'utf8');
+  const raw = fs.readFileSync(baselinePath, "utf8");
   const parsed = JSON.parse(raw);
   return Array.isArray(parsed.entries) ? parsed.entries : [];
 }
 
 function runAudit(extraArgs) {
-  const result = spawnSync(npmCommand(), ['audit', '--json', ...extraArgs], {
+  const result = spawnSync(npmCommand(), ["audit", "--json", ...extraArgs], {
     cwd: projectRoot,
-    encoding: 'utf8',
+    encoding: "utf8",
     env: process.env,
   });
 
   if (![0, 1].includes(result.status ?? 0)) {
-    process.stderr.write(result.stderr || result.stdout || 'npm audit failed.\n');
+    process.stderr.write(
+      result.stderr || result.stdout || "npm audit failed.\n",
+    );
     process.exit(result.status ?? 1);
   }
 
-  const combinedOutput = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
-  const jsonStart = combinedOutput.indexOf('{');
+  const combinedOutput =
+    `${result.stdout || ""}\n${result.stderr || ""}`.trim();
+  const jsonStart = combinedOutput.indexOf("{");
   if (jsonStart === -1) {
     if ((result.status ?? 0) === 0) {
       return {
@@ -58,7 +65,7 @@ function runAudit(extraArgs) {
       };
     }
 
-    throw new Error('npm audit returned no JSON payload.');
+    throw new Error("npm audit returned no JSON payload.");
   }
 
   return JSON.parse(combinedOutput.slice(jsonStart));
@@ -67,7 +74,7 @@ function runAudit(extraArgs) {
 function toFindings(report, scope) {
   return Object.entries(report.vulnerabilities || {}).map(([pkg, entry]) => {
     const advisories = (entry.via || [])
-      .filter((item) => item && typeof item === 'object' && item.title)
+      .filter((item) => item && typeof item === "object" && item.title)
       .map((item) => ({
         source: item.source,
         title: item.title,
@@ -88,10 +95,11 @@ function toFindings(report, scope) {
 }
 
 function matchBaseline(finding, baselineEntries) {
-  return baselineEntries.find((entry) =>
-    entry.package === finding.package &&
-    entry.scope === finding.scope &&
-    entry.severity === finding.severity
+  return baselineEntries.find(
+    (entry) =>
+      entry.package === finding.package &&
+      entry.scope === finding.scope &&
+      entry.severity === finding.severity,
   );
 }
 
@@ -100,54 +108,60 @@ function formatFinding(finding, baselineEntry) {
   const notes = [];
 
   if (finding.advisories.length) {
-    notes.push(`advisories: ${finding.advisories.map((item) => item.title).join(' | ')}`);
+    notes.push(
+      `advisories: ${finding.advisories.map((item) => item.title).join(" | ")}`,
+    );
   }
   if (finding.effects.length) {
-    notes.push(`effects: ${finding.effects.join(', ')}`);
+    notes.push(`effects: ${finding.effects.join(", ")}`);
   }
   if (finding.nodes.length) {
-    notes.push(`nodes: ${finding.nodes.join(', ')}`);
+    notes.push(`nodes: ${finding.nodes.join(", ")}`);
   }
   if (baselineEntry) {
-    notes.push(`baseline: ${baselineEntry.reason} (review by ${baselineEntry.reviewBy})`);
+    notes.push(
+      `baseline: ${baselineEntry.reason} (review by ${baselineEntry.reviewBy})`,
+    );
   }
 
-  return `- ${headline}\n  ${notes.join('\n  ')}`;
+  return `- ${headline}\n  ${notes.join("\n  ")}`;
 }
 
 function writeReports(payload) {
   fs.mkdirSync(reportDirectory, { recursive: true });
-  fs.writeFileSync(summaryJsonPath, JSON.stringify(payload, null, 2) + '\n');
+  fs.writeFileSync(summaryJsonPath, JSON.stringify(payload, null, 2) + "\n");
 
   const sections = [
-    '# npm audit summary',
-    '',
+    "# npm audit summary",
+    "",
     `- generatedAt: ${payload.generatedAt}`,
     `- blockingFindings: ${payload.blockingFindings.length}`,
     `- baselinedDevelopmentFindings: ${payload.baselinedDevelopmentFindings.length}`,
     `- productionVulnerabilities: ${JSON.stringify(payload.production.metadata.vulnerabilities)}`,
     `- fullAuditVulnerabilities: ${JSON.stringify(payload.full.metadata.vulnerabilities)}`,
-    '',
-    '## Blocking findings',
+    "",
+    "## Blocking findings",
     ...(payload.blockingFindings.length
       ? payload.blockingFindings.map((item) => formatFinding(item, null))
-      : ['- none']),
-    '',
-    '## Baselined development findings',
+      : ["- none"]),
+    "",
+    "## Baselined development findings",
     ...(payload.baselinedDevelopmentFindings.length
-      ? payload.baselinedDevelopmentFindings.map((item) => formatFinding(item.finding, item.baseline))
-      : ['- none']),
+      ? payload.baselinedDevelopmentFindings.map((item) =>
+          formatFinding(item.finding, item.baseline),
+        )
+      : ["- none"]),
   ];
 
-  fs.writeFileSync(summaryMarkdownPath, sections.join('\n') + '\n');
+  fs.writeFileSync(summaryMarkdownPath, sections.join("\n") + "\n");
 }
 
 const baselineEntries = readBaseline();
-const productionAudit = runAudit(['--omit=dev']);
+const productionAudit = runAudit(["--omit=dev"]);
 const fullAudit = runAudit([]);
 
-const productionFindings = toFindings(productionAudit, 'production');
-const fullFindings = toFindings(fullAudit, 'development');
+const productionFindings = toFindings(productionAudit, "production");
+const fullFindings = toFindings(fullAudit, "development");
 
 const baselinedDevelopmentFindings = [];
 const blockingFindings = [];
@@ -159,7 +173,11 @@ for (const finding of productionFindings) {
 }
 
 for (const finding of fullFindings) {
-  if (productionFindings.some((prodFinding) => prodFinding.package === finding.package)) {
+  if (
+    productionFindings.some(
+      (prodFinding) => prodFinding.package === finding.package,
+    )
+  ) {
     continue;
   }
 
@@ -191,8 +209,10 @@ const payload = {
 writeReports(payload);
 
 if (blockingFindings.length) {
-  process.stderr.write(`Security audit failed with ${blockingFindings.length} blocking finding(s).\n`);
+  process.stderr.write(
+    `Security audit failed with ${blockingFindings.length} blocking finding(s).\n`,
+  );
   process.exit(1);
 }
 
-process.stdout.write('Security audit policy passed.\n');
+process.stdout.write("Security audit policy passed.\n");

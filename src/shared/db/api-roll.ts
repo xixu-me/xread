@@ -1,36 +1,35 @@
-import { Also, Prop } from 'civkit';
-import { FirestoreRecord } from '../lib/firestore';
+import { Also, Prop } from "civkit";
+import { FirestoreRecord } from "../lib/firestore";
 
 export enum API_CALL_STATUS {
-    SUCCESS = 'SUCCESS',
-    RATE_LIMITED = 'RATE_LIMITED',
-    FAILED = 'FAILED',
+  SUCCESS = "SUCCESS",
+  RATE_LIMITED = "RATE_LIMITED",
+  FAILED = "FAILED",
 }
 
 @Also({
-    dictOf: Object,
+  dictOf: Object,
 })
 export class ApiRollRecord extends FirestoreRecord {
-    static override collectionName = 'api-rolls';
+  static override collectionName = "api-rolls";
 
-    override _id!: string;
+  override _id!: string;
 
-    @Prop()
-    uid?: string;
+  @Prop()
+  uid?: string;
 
-    @Prop()
-    ip?: string;
+  @Prop()
+  ip?: string;
 
-    @Prop({ arrayOf: String })
-    tags?: string[];
+  @Prop({ arrayOf: String })
+  tags?: string[];
 
-    @Prop()
-    status?: API_CALL_STATUS;
+  @Prop()
+  status?: API_CALL_STATUS;
 
-    @Prop()
-    chargeAmount?: number;
+  @Prop()
+  chargeAmount?: number;
 
-    @Prop()
-    createdAt!: Date;
+  @Prop()
+  createdAt!: Date;
 }
-

@@ -1,30 +1,30 @@
-import { Also, Prop } from 'civkit';
-import { FirestoreRecord } from '../shared/lib/firestore';
+import { Also, Prop } from "civkit";
+import { FirestoreRecord } from "../shared/lib/firestore";
 
 @Also({
-    dictOf: Object
+  dictOf: Object,
 })
 export class DomainBlockade extends FirestoreRecord {
-    static override collectionName = 'domainBlockades';
+  static override collectionName = "domainBlockades";
 
-    override _id!: string;
+  override _id!: string;
 
-    @Prop({
-        required: true
-    })
-    domain!: string;
+  @Prop({
+    required: true,
+  })
+  domain!: string;
 
-    @Prop({ required: true })
-    triggerReason!: string;
+  @Prop({ required: true })
+  triggerReason!: string;
 
-    @Prop()
-    triggerUrl?: string;
+  @Prop()
+  triggerUrl?: string;
 
-    @Prop()
-    createdAt!: Date;
+  @Prop()
+  createdAt!: Date;
 
-    @Prop()
-    expireAt?: Date;
+  @Prop()
+  expireAt?: Date;
 
-    [k: string]: any;
+  [k: string]: any;
 }

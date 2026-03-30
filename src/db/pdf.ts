@@ -1,65 +1,63 @@
-import { Also, Prop, parseJSONText } from 'civkit';
-import { FirestoreRecord } from '../shared/lib/firestore';
-import _ from 'lodash';
+import { Also, Prop, parseJSONText } from "civkit";
+import { FirestoreRecord } from "../shared/lib/firestore";
+import _ from "lodash";
 
 @Also({
-    dictOf: Object
+  dictOf: Object,
 })
 export class PDFContent extends FirestoreRecord {
-    static override collectionName = 'pdfs';
+  static override collectionName = "pdfs";
 
-    override _id!: string;
+  override _id!: string;
 
-    @Prop({
-        required: true
-    })
-    src!: string;
+  @Prop({
+    required: true,
+  })
+  src!: string;
 
-    @Prop({
-        required: true
-    })
-    urlDigest!: string;
+  @Prop({
+    required: true,
+  })
+  urlDigest!: string;
 
-    @Prop()
-    meta?: { [k: string]: any; };
+  @Prop()
+  meta?: { [k: string]: any };
 
-    @Prop()
-    text?: string;
+  @Prop()
+  text?: string;
 
-    @Prop()
-    content?: string;
+  @Prop()
+  content?: string;
 
-    @Prop()
-    createdAt!: Date;
+  @Prop()
+  createdAt!: Date;
 
-    @Prop()
-    expireAt?: Date;
+  @Prop()
+  expireAt?: Date;
 
-    static patchedFields = [
-        'meta'
-    ];
+  static patchedFields = ["meta"];
 
-    static override from(input: any) {
-        for (const field of this.patchedFields) {
-            if (typeof input[field] === 'string') {
-                input[field] = parseJSONText(input[field]);
-            }
-        }
-
-        return super.from(input) as PDFContent;
+  static override from(input: any) {
+    for (const field of this.patchedFields) {
+      if (typeof input[field] === "string") {
+        input[field] = parseJSONText(input[field]);
+      }
     }
 
-    override degradeForFireStore() {
-        const copy: any = { ...this };
+    return super.from(input) as PDFContent;
+  }
 
-        for (const field of (this.constructor as typeof PDFContent).patchedFields) {
-            if (typeof copy[field] === 'object') {
-                copy[field] = JSON.stringify(copy[field]) as any;
-            }
-        }
+  override degradeForFireStore() {
+    const copy: any = { ...this };
 
-        return copy;
+    for (const field of (this.constructor as typeof PDFContent).patchedFields) {
+      if (typeof copy[field] === "object") {
+        copy[field] = JSON.stringify(copy[field]) as any;
+      }
     }
 
-    [k: string]: any;
+    return copy;
+  }
+
+  [k: string]: any;
 }

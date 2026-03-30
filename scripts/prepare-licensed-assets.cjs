@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require("node:fs");
+const path = require("node:path");
 
 const DEFAULT_ASSETS = [
   {
-    path: 'licensed/GeoLite2-City.mmdb',
-    url: 'https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-City.mmdb',
+    path: "licensed/GeoLite2-City.mmdb",
+    url: "https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-City.mmdb",
   },
 ];
 
 async function downloadAsset(asset, destination) {
   const response = await fetch(asset.url);
   if (!response.ok) {
-    throw new Error(`Failed to download ${asset.url}: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to download ${asset.url}: ${response.status} ${response.statusText}`,
+    );
   }
 
   const arrayBuffer = await response.arrayBuffer();
@@ -22,7 +24,7 @@ async function downloadAsset(asset, destination) {
 }
 
 async function ensureLicensedAssets({
-  rootDir = __dirname ? path.resolve(__dirname, '..') : process.cwd(),
+  rootDir = __dirname ? path.resolve(__dirname, "..") : process.cwd(),
   assets = DEFAULT_ASSETS,
   downloadAsset: downloadImpl = downloadAsset,
 } = {}) {
@@ -39,7 +41,7 @@ async function ensureLicensedAssets({
 if (require.main === module) {
   ensureLicensedAssets()
     .then(() => {
-      process.stdout.write('Licensed assets are ready.\n');
+      process.stdout.write("Licensed assets are ready.\n");
     })
     .catch((error) => {
       process.stderr.write(`${error.stack || error}\n`);

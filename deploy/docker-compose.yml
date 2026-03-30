@@ -1,0 +1,75 @@
+services:
+  crawl:
+    image: ${XREAD_IMAGE:-ghcr.io/xixu-me/xread:latest}
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      STORAGE_ROOT: /data/storage
+      LOCAL_DB_ROOT: /data/db
+      SERPER_SEARCH_API_KEY: ${SERPER_SEARCH_API_KEY:-}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      LOCAL_PROXY_URLS: ${LOCAL_PROXY_URLS:-}
+    volumes:
+      - crawl_storage:/data/storage
+      - crawl_db:/data/db
+    ports:
+      - "${XREAD_LOOPBACK_HOST:-127.0.0.1}:${XREAD_CRAWL_LOOPBACK_PORT:-3001}:3001"
+
+  search:
+    image: ${XREAD_IMAGE:-ghcr.io/xixu-me/xread:latest}
+    restart: unless-stopped
+    command: ["build/stand-alone/search.js"]
+    environment:
+      PORT: 3100
+      STORAGE_ROOT: /data/storage
+      LOCAL_DB_ROOT: /data/db
+      SERPER_SEARCH_API_KEY: ${SERPER_SEARCH_API_KEY:-}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      LOCAL_PROXY_URLS: ${LOCAL_PROXY_URLS:-}
+    volumes:
+      - search_storage:/data/storage
+      - search_db:/data/db
+    ports:
+      - "${XREAD_LOOPBACK_HOST:-127.0.0.1}:${XREAD_SEARCH_LOOPBACK_PORT:-3101}:3101"
+
+  serp:
+    image: ${XREAD_IMAGE:-ghcr.io/xixu-me/xread:latest}
+    restart: unless-stopped
+    command: ["build/stand-alone/serp.js"]
+    environment:
+      PORT: 3200
+      STORAGE_ROOT: /data/storage
+      LOCAL_DB_ROOT: /data/db
+      SERPER_SEARCH_API_KEY: ${SERPER_SEARCH_API_KEY:-}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      LOCAL_PROXY_URLS: ${LOCAL_PROXY_URLS:-}
+    volumes:
+      - serp_storage:/data/storage
+      - serp_db:/data/db
+    ports:
+      - "${XREAD_LOOPBACK_HOST:-127.0.0.1}:${XREAD_SERP_LOOPBACK_PORT:-3201}:3201"
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "${PUBLIC_HTTP_PORT:-80}:80"
+      - "${PUBLIC_HTTPS_PORT:-443}:443"
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      R_HOST: ${R_HOST}
+      S_HOST: ${S_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  crawl_storage:
+  crawl_db:
+  search_storage:
+  search_db:
+  serp_storage:
+  serp_db:
+  caddy_data:
+  caddy_config:

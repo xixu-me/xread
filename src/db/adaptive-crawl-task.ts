@@ -1,86 +1,85 @@
-import { Also, Prop, parseJSONText } from 'civkit';
-import { FirestoreRecord } from '../shared/lib/firestore';
-import _ from 'lodash';
+import { Also, Prop, parseJSONText } from "civkit";
+import { FirestoreRecord } from "../shared/lib/firestore";
+import _ from "lodash";
 
 export enum AdaptiveCrawlTaskStatus {
-    PENDING = 'pending',
-    PROCESSING = 'processing',
-    COMPLETED = 'completed',
-    FAILED = 'failed',
+  PENDING = "pending",
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  FAILED = "failed",
 }
 
 @Also({
-    dictOf: Object
+  dictOf: Object,
 })
 export class AdaptiveCrawlTask extends FirestoreRecord {
-    static override collectionName = 'adaptiveCrawlTasks';
+  static override collectionName = "adaptiveCrawlTasks";
 
-    override _id!: string;
+  override _id!: string;
 
-    @Prop({
-        required: true
-    })
-    status!: AdaptiveCrawlTaskStatus;
+  @Prop({
+    required: true,
+  })
+  status!: AdaptiveCrawlTaskStatus;
 
-    @Prop({
-        required: true
-    })
-    statusText!: string;
+  @Prop({
+    required: true,
+  })
+  statusText!: string;
 
-    @Prop()
-    meta!: {
-        useSitemap: boolean;
-        maxPages: number;
-        targetUrl: string;
-    };
+  @Prop()
+  meta!: {
+    useSitemap: boolean;
+    maxPages: number;
+    targetUrl: string;
+  };
 
-    @Prop()
-    urls!: string[];
+  @Prop()
+  urls!: string[];
 
-    @Prop()
-    processed!: {
-        [url: string]: string;
-    };
+  @Prop()
+  processed!: {
+    [url: string]: string;
+  };
 
-    @Prop()
-    failed!: {
-        [url: string]: any;
-    };
+  @Prop()
+  failed!: {
+    [url: string]: any;
+  };
 
-    @Prop()
-    createdAt!: Date;
+  @Prop()
+  createdAt!: Date;
 
-    @Prop()
-    finishedAt?: Date;
+  @Prop()
+  finishedAt?: Date;
 
-    @Prop()
-    duration?: number;
+  @Prop()
+  duration?: number;
 
-    static patchedFields = [
-        'meta',
-    ];
+  static patchedFields = ["meta"];
 
-    static override from(input: any) {
-        for (const field of this.patchedFields) {
-            if (typeof input[field] === 'string') {
-                input[field] = parseJSONText(input[field]);
-            }
-        }
-
-        return super.from(input) as AdaptiveCrawlTask;
+  static override from(input: any) {
+    for (const field of this.patchedFields) {
+      if (typeof input[field] === "string") {
+        input[field] = parseJSONText(input[field]);
+      }
     }
 
-    override degradeForFireStore() {
-        const copy: any = { ...this };
+    return super.from(input) as AdaptiveCrawlTask;
+  }
 
-        for (const field of (this.constructor as typeof AdaptiveCrawlTask).patchedFields) {
-            if (typeof copy[field] === 'object') {
-                copy[field] = JSON.stringify(copy[field]) as any;
-            }
-        }
+  override degradeForFireStore() {
+    const copy: any = { ...this };
 
-        return copy;
+    for (const field of (this.constructor as typeof AdaptiveCrawlTask)
+      .patchedFields) {
+      if (typeof copy[field] === "object") {
+        copy[field] = JSON.stringify(copy[field]) as any;
+      }
     }
 
-    [k: string]: any;
+    return copy;
+  }
+
+  [k: string]: any;
 }

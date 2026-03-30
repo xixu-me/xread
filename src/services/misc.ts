@@ -1,129 +1,140 @@
-import { singleton } from 'tsyringe';
-import { AsyncService } from 'civkit/async-service';
-import { ParamValidationError } from 'civkit/civ-rpc';
-import { SecurityCompromiseError } from '../shared/lib/errors';
-import { isIP } from 'node:net';
-import { isIPInNonPublicRange } from '../utils/ip';
-import { GlobalLogger } from './logger';
-import { lookup } from 'node:dns/promises';
-import { Threaded } from './threaded';
+import { singleton } from "tsyringe";
+import { AsyncService } from "civkit/async-service";
+import { ParamValidationError } from "civkit/civ-rpc";
+import { SecurityCompromiseError } from "../shared/lib/errors";
+import { isIP } from "node:net";
+import { isIPInNonPublicRange } from "../utils/ip";
+import { GlobalLogger } from "./logger";
+import { lookup } from "node:dns/promises";
+import { Threaded } from "./threaded";
 
-const normalizeUrl = require('@esm2cjs/normalize-url').default;
+const normalizeUrl = require("@esm2cjs/normalize-url").default;
 
-const STANDALONE_ALLOW_INTERNAL_DNS_REWRITE = process.env.STANDALONE_ALLOW_INTERNAL_DNS_REWRITE === 'true';
+const STANDALONE_ALLOW_INTERNAL_DNS_REWRITE =
+  process.env.STANDALONE_ALLOW_INTERNAL_DNS_REWRITE === "true";
 
 function isStandaloneDnsRewriteAddress(address: string) {
-    const normalized = address.toLowerCase();
+  const normalized = address.toLowerCase();
 
-    return normalized.startsWith('198.18.')
-        || normalized.startsWith('198.19.')
-        || normalized.startsWith('fd00::');
+  return (
+    normalized.startsWith("198.18.") ||
+    normalized.startsWith("198.19.") ||
+    normalized.startsWith("fd00::")
+  );
 }
 
 @singleton()
 export class MiscService extends AsyncService {
+  logger = this.globalLogger.child({ service: this.constructor.name });
 
-    logger = this.globalLogger.child({ service: this.constructor.name });
+  constructor(protected globalLogger: GlobalLogger) {
+    super(...arguments);
+  }
 
-    constructor(
-        protected globalLogger: GlobalLogger,
+  override async init() {
+    await this.dependencyReady();
+
+    this.emit("ready");
+  }
+
+  @Threaded()
+  async assertNormalizedUrl(input: string) {
+    let result: URL;
+    try {
+      result = new URL(
+        normalizeUrl(input, {
+          stripWWW: false,
+          removeTrailingSlash: false,
+          removeSingleSlash: false,
+          sortQueryParameters: false,
+        }),
+      );
+    } catch (err) {
+      throw new ParamValidationError({
+        message: `${err}`,
+        path: "url",
+      });
+    }
+
+    if (!["http:", "https:", "blob:"].includes(result.protocol)) {
+      throw new ParamValidationError({
+        message: `Invalid protocol ${result.protocol}`,
+        path: "url",
+      });
+    }
+
+    const normalizedHostname = result.hostname.startsWith("[")
+      ? result.hostname.slice(1, -1)
+      : result.hostname;
+    let ips: string[] = [];
+    const isIp = isIP(normalizedHostname);
+    if (isIp) {
+      ips.push(normalizedHostname);
+    }
+    if (
+      result.hostname === "localhost" ||
+      (isIp && isIPInNonPublicRange(normalizedHostname))
     ) {
-        super(...arguments);
+      this.logger.warn(
+        `Suspicious action: Request to localhost or non-public IP: ${normalizedHostname}`,
+        { href: result.href },
+      );
+      throw new SecurityCompromiseError({
+        message: `Suspicious action: Request to localhost or non-public IP: ${normalizedHostname}`,
+        path: "url",
+      });
     }
-
-    override async init() {
-        await this.dependencyReady();
-
-        this.emit('ready');
-    }
-
-    @Threaded()
-    async assertNormalizedUrl(input: string) {
-        let result: URL;
-        try {
-            result = new URL(
-                normalizeUrl(
-                    input,
-                    {
-                        stripWWW: false,
-                        removeTrailingSlash: false,
-                        removeSingleSlash: false,
-                        sortQueryParameters: false,
-                    }
-                )
+    if (!isIp && result.protocol !== "blob:") {
+      const resolved = await lookup(result.hostname, { all: true }).catch(
+        (err) => {
+          if (err.code === "ENOTFOUND") {
+            return Promise.reject(
+              new ParamValidationError({
+                message: `Domain '${result.hostname}' could not be resolved`,
+                path: "url",
+              }),
             );
-        } catch (err) {
-            throw new ParamValidationError({
-                message: `${err}`,
-                path: 'url'
-            });
+          }
+
+          return;
+        },
+      );
+      if (resolved) {
+        const resolvedAddrs = resolved.map((x) => x.address);
+        const allowStandaloneDnsRewrite =
+          STANDALONE_ALLOW_INTERNAL_DNS_REWRITE &&
+          resolvedAddrs.length &&
+          resolvedAddrs.every((x) => isStandaloneDnsRewriteAddress(x));
+
+        if (allowStandaloneDnsRewrite) {
+          this.logger.warn(
+            `Allowing Docker DNS rewrite addresses for standalone container`,
+            {
+              href: result.href,
+              ips: resolvedAddrs,
+            },
+          );
         }
 
-        if (!['http:', 'https:', 'blob:'].includes(result.protocol)) {
-            throw new ParamValidationError({
-                message: `Invalid protocol ${result.protocol}`,
-                path: 'url'
-            });
-        }
-
-        const normalizedHostname = result.hostname.startsWith('[') ? result.hostname.slice(1, -1) : result.hostname;
-        let ips: string[] = [];
-        const isIp = isIP(normalizedHostname);
-        if (isIp) {
-            ips.push(normalizedHostname);
-        }
-        if (
-            (result.hostname === 'localhost') ||
-            (isIp && isIPInNonPublicRange(normalizedHostname))
-        ) {
-            this.logger.warn(`Suspicious action: Request to localhost or non-public IP: ${normalizedHostname}`, { href: result.href });
+        for (const x of resolved) {
+          if (isIPInNonPublicRange(x.address) && !allowStandaloneDnsRewrite) {
+            this.logger.warn(
+              `Suspicious action: Domain resolved to non-public IP: ${result.hostname} => ${x.address}`,
+              { href: result.href, ip: x.address },
+            );
             throw new SecurityCompromiseError({
-                message: `Suspicious action: Request to localhost or non-public IP: ${normalizedHostname}`,
-                path: 'url'
+              message: `Suspicious action: Domain resolved to non-public IP: ${x.address}`,
+              path: "url",
             });
+          }
+          ips.push(x.address);
         }
-        if (!isIp && result.protocol !== 'blob:') {
-            const resolved = await lookup(result.hostname, { all: true }).catch((err) => {
-                if (err.code === 'ENOTFOUND') {
-                    return Promise.reject(new ParamValidationError({
-                        message: `Domain '${result.hostname}' could not be resolved`,
-                        path: 'url'
-                    }));
-                }
-
-                return;
-            });
-            if (resolved) {
-                const resolvedAddrs = resolved.map((x) => x.address);
-                const allowStandaloneDnsRewrite = STANDALONE_ALLOW_INTERNAL_DNS_REWRITE
-                    && resolvedAddrs.length
-                    && resolvedAddrs.every((x) => isStandaloneDnsRewriteAddress(x));
-
-                if (allowStandaloneDnsRewrite) {
-                    this.logger.warn(`Allowing Docker DNS rewrite addresses for standalone container`, {
-                        href: result.href,
-                        ips: resolvedAddrs,
-                    });
-                }
-
-                for (const x of resolved) {
-                    if (isIPInNonPublicRange(x.address) && !allowStandaloneDnsRewrite) {
-                        this.logger.warn(`Suspicious action: Domain resolved to non-public IP: ${result.hostname} => ${x.address}`, { href: result.href, ip: x.address });
-                        throw new SecurityCompromiseError({
-                            message: `Suspicious action: Domain resolved to non-public IP: ${x.address}`,
-                            path: 'url'
-                        });
-                    }
-                    ips.push(x.address);
-                }
-
-            }
-        }
-
-        return {
-            url: result,
-            ips
-        };
+      }
     }
 
+    return {
+      url: result,
+      ips,
+    };
+  }
 }

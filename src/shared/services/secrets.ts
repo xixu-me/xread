@@ -1,53 +1,56 @@
-import { AsyncService } from 'civkit/async-service';
-import { singleton } from 'tsyringe';
+import { AsyncService } from "civkit/async-service";
+import { singleton } from "tsyringe";
 
 type EnvConfig = Record<string, string> & {
-    readonly SERPER_SEARCH_API_KEY: string;
-    readonly BRAVE_SEARCH_API_KEY: string;
-    readonly CLOUD_FLARE_API_KEY: string;
-    readonly LOCAL_PROXY_URLS: string;
-    readonly STORAGE_ROOT: string;
-    readonly LOCAL_DB_ROOT: string;
+  readonly SERPER_SEARCH_API_KEY: string;
+  readonly BRAVE_SEARCH_API_KEY: string;
+  readonly CLOUD_FLARE_API_KEY: string;
+  readonly LOCAL_PROXY_URLS: string;
+  readonly STORAGE_ROOT: string;
+  readonly LOCAL_DB_ROOT: string;
 };
 
-export const readEnv = (key: string) => process.env[key] || '';
+export const readEnv = (key: string) => process.env[key] || "";
 
-const envConfig = new Proxy({}, {
+const envConfig = new Proxy(
+  {},
+  {
     get(_target, prop) {
-        return readEnv(String(prop));
+      return readEnv(String(prop));
     },
-}) as EnvConfig;
+  },
+) as EnvConfig;
 
 @singleton()
 export class SecretExposer extends AsyncService {
-    override async init() {
-        await this.dependencyReady();
-        this.emit('ready');
-    }
+  override async init() {
+    await this.dependencyReady();
+    this.emit("ready");
+  }
 
-    get SERPER_SEARCH_API_KEY() {
-        return readEnv('SERPER_SEARCH_API_KEY');
-    }
+  get SERPER_SEARCH_API_KEY() {
+    return readEnv("SERPER_SEARCH_API_KEY");
+  }
 
-    get BRAVE_SEARCH_API_KEY() {
-        return readEnv('BRAVE_SEARCH_API_KEY');
-    }
+  get BRAVE_SEARCH_API_KEY() {
+    return readEnv("BRAVE_SEARCH_API_KEY");
+  }
 
-    get CLOUD_FLARE_API_KEY() {
-        return readEnv('CLOUD_FLARE_API_KEY');
-    }
+  get CLOUD_FLARE_API_KEY() {
+    return readEnv("CLOUD_FLARE_API_KEY");
+  }
 
-    get LOCAL_PROXY_URLS() {
-        return readEnv('LOCAL_PROXY_URLS');
-    }
+  get LOCAL_PROXY_URLS() {
+    return readEnv("LOCAL_PROXY_URLS");
+  }
 
-    get STORAGE_ROOT() {
-        return readEnv('STORAGE_ROOT');
-    }
+  get STORAGE_ROOT() {
+    return readEnv("STORAGE_ROOT");
+  }
 
-    get LOCAL_DB_ROOT() {
-        return readEnv('LOCAL_DB_ROOT');
-    }
+  get LOCAL_DB_ROOT() {
+    return readEnv("LOCAL_DB_ROOT");
+  }
 }
 
 export default envConfig;

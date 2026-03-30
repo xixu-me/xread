@@ -1,64 +1,75 @@
-import _ from 'lodash';
-import fs from 'fs';
-import { readFile } from 'fs/promises';
-import { container, singleton } from 'tsyringe';
+import _ from "lodash";
+import fs from "fs";
+import { readFile } from "fs/promises";
+import { container, singleton } from "tsyringe";
 
-import type { Browser, CookieParam, GoToOptions, Page, Viewport } from 'puppeteer';
-import type { Cookie } from 'set-cookie-parser';
-import puppeteer, { TimeoutError } from 'puppeteer';
+import type {
+  Browser,
+  CookieParam,
+  GoToOptions,
+  Page,
+  Viewport,
+} from "puppeteer";
+import type { Cookie } from "set-cookie-parser";
+import puppeteer, { TimeoutError } from "puppeteer";
 
-import { Defer } from 'civkit/defer';
-import { AssertionFailureError, ParamValidationError } from 'civkit/civ-rpc';
-import { AsyncService } from 'civkit/async-service';
-import { FancyFile } from 'civkit/fancy-file';
-import { delay } from 'civkit/timeout';
+import { Defer } from "civkit/defer";
+import { AssertionFailureError, ParamValidationError } from "civkit/civ-rpc";
+import { AsyncService } from "civkit/async-service";
+import { FancyFile } from "civkit/fancy-file";
+import { delay } from "civkit/timeout";
 
-import { SecurityCompromiseError, ServiceCrashedError, ServiceNodeResourceDrainError } from '../../shared/lib/errors';
-import { CurlControl } from '../curl';
-import { AsyncLocalContext } from '../async-context';
-import { GlobalLogger } from '../logger';
-import { minimalStealth } from '../minimal-stealth';
-import { BlackHoleDetector } from '../blackhole-detector';
+import {
+  SecurityCompromiseError,
+  ServiceCrashedError,
+  ServiceNodeResourceDrainError,
+} from "../../shared/lib/errors";
+import { CurlControl } from "../curl";
+import { AsyncLocalContext } from "../async-context";
+import { GlobalLogger } from "../logger";
+import { minimalStealth } from "../minimal-stealth";
+import { BlackHoleDetector } from "../blackhole-detector";
 
 function getChromeLaunchArgs() {
-    const args = [
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-    ];
+  const args = [
+    "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
+  ];
 
-    // Docker and many CI kernels do not permit Chrome's sandbox namespaces.
-    if (process.env.PUPPETEER_DISABLE_SANDBOX !== 'false' && fs.existsSync('/.dockerenv')) {
-        args.push('--no-sandbox', '--disable-setuid-sandbox');
-    }
+  // Docker and many CI kernels do not permit Chrome's sandbox namespaces.
+  if (
+    process.env.PUPPETEER_DISABLE_SANDBOX !== "false" &&
+    fs.existsSync("/.dockerenv")
+  ) {
+    args.push("--no-sandbox", "--disable-setuid-sandbox");
+  }
 
-    return args;
+  return args;
 }
 
-
 export interface ScrappingOptions {
-    proxyUrl?: string;
-    cookies?: Cookie[];
-    overrideUserAgent?: string;
-    timeoutMs?: number;
-    locale?: string;
-    referer?: string;
-    extraHeaders?: Record<string, string>;
-    viewport?: Viewport;
-    proxyResources?: boolean;
-    allocProxy?: string;
+  proxyUrl?: string;
+  cookies?: Cookie[];
+  overrideUserAgent?: string;
+  timeoutMs?: number;
+  locale?: string;
+  referer?: string;
+  extraHeaders?: Record<string, string>;
+  viewport?: Viewport;
+  proxyResources?: boolean;
+  allocProxy?: string;
 
-    sideLoad?: {
-        impersonate: {
-            [url: string]: {
-                status: number;
-                headers: { [k: string]: string | string[]; };
-                contentType?: string;
-                body?: FancyFile;
-            };
-        };
-        proxyOrigin: { [origin: string]: string; };
+  sideLoad?: {
+    impersonate: {
+      [url: string]: {
+        status: number;
+        headers: { [k: string]: string | string[] };
+        contentType?: string;
+        body?: FancyFile;
+      };
     };
-
+    proxyOrigin: { [origin: string]: string };
+  };
 }
 
 const SIMULATE_SCROLL = `
@@ -236,336 +247,401 @@ window.waitForSelector = waitForSelector;
 
 @singleton()
 export class SERPSpecializedPuppeteerControl extends AsyncService {
+  _sn = 0;
+  browser!: Browser;
+  logger = this.globalLogger.child({ service: this.constructor.name });
 
-    _sn = 0;
-    browser!: Browser;
-    logger = this.globalLogger.child({ service: this.constructor.name });
+  __loadedPage: Page[] = [];
 
-    __loadedPage: Page[] = [];
+  finalizerMap = new WeakMap<Page, ReturnType<typeof setTimeout>>();
+  snMap = new WeakMap<Page, number>();
+  livePages = new Set<Page>();
+  lastPageCratedAt: number = 0;
+  ua: string = "";
+  effectiveUA: string = "";
 
-    finalizerMap = new WeakMap<Page, ReturnType<typeof setTimeout>>();
-    snMap = new WeakMap<Page, number>();
-    livePages = new Set<Page>();
-    lastPageCratedAt: number = 0;
-    ua: string = '';
-    effectiveUA: string = '';
+  protected _REPORT_FUNCTION_NAME = "bingo";
 
-    protected _REPORT_FUNCTION_NAME = 'bingo';
+  lifeCycleTrack = new WeakMap();
 
-    lifeCycleTrack = new WeakMap();
+  constructor(
+    protected globalLogger: GlobalLogger,
+    protected asyncLocalContext: AsyncLocalContext,
+    protected curlControl: CurlControl,
+    protected blackHoleDetector: BlackHoleDetector,
+  ) {
+    super(...arguments);
+    this.setMaxListeners(Infinity);
 
-    constructor(
-        protected globalLogger: GlobalLogger,
-        protected asyncLocalContext: AsyncLocalContext,
-        protected curlControl: CurlControl,
-        protected blackHoleDetector: BlackHoleDetector,
-    ) {
-        super(...arguments);
-        this.setMaxListeners(Infinity);
-
-        let crippledTimes = 0;
-        this.on('crippled', () => {
-            crippledTimes += 1;
-            this.__loadedPage.length = 0;
-            this.livePages.clear();
-            if (crippledTimes > 5) {
-                process.nextTick(() => {
-                    this.emit('error', new Error('Browser crashed too many times, quitting...'));
-                    // process.exit(1);
-                });
-            }
+    let crippledTimes = 0;
+    this.on("crippled", () => {
+      crippledTimes += 1;
+      this.__loadedPage.length = 0;
+      this.livePages.clear();
+      if (crippledTimes > 5) {
+        process.nextTick(() => {
+          this.emit(
+            "error",
+            new Error("Browser crashed too many times, quitting..."),
+          );
+          // process.exit(1);
         });
+      }
+    });
+  }
+
+  override async init() {
+    await this.dependencyReady();
+    if (process.env.NODE_ENV?.includes("dry-run")) {
+      this.emit("ready");
+      return;
     }
 
-    override async init() {
-        await this.dependencyReady();
-        if (process.env.NODE_ENV?.includes('dry-run')) {
-            this.emit('ready');
-            return;
-        }
+    if (this.browser) {
+      if (this.browser.connected) {
+        await this.browser.close();
+      } else {
+        this.browser.process()?.kill("SIGKILL");
+      }
+    }
+    this.browser = await puppeteer
+      .launch({
+        timeout: 30_000,
+        headless: !Boolean(process.env.DEBUG_BROWSER),
+        pipe: true,
+        executablePath: process.env.OVERRIDE_CHROME_EXECUTABLE_PATH,
+        args: getChromeLaunchArgs(),
+      })
+      .catch((err: any) => {
+        this.logger.error(`Unknown firebase issue, just die fast.`, { err });
+        process.nextTick(() => {
+          this.emit("error", err);
+          // process.exit(1);
+        });
+        return Promise.reject(err);
+      });
+    this.browser.once("disconnected", () => {
+      this.logger.warn(`Browser disconnected`);
+      if (this.browser) {
+        this.emit("crippled");
+      }
+      process.nextTick(() => this.serviceReady());
+    });
+    this.ua = await this.browser.userAgent();
+    this.logger.info(
+      `Browser launched: ${this.browser.process()?.pid}, ${this.ua}`,
+    );
+    this.effectiveUA = this.ua
+      .replace(/Headless/i, "")
+      .replace(
+        "Mozilla/5.0 (X11; Linux x86_64)",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      );
+    this.curlControl.impersonateChrome(this.effectiveUA);
 
-        if (this.browser) {
-            if (this.browser.connected) {
-                await this.browser.close();
-            } else {
-                this.browser.process()?.kill('SIGKILL');
-            }
-        }
-        this.browser = await puppeteer.launch({
-            timeout: 30_000,
-            headless: !Boolean(process.env.DEBUG_BROWSER),
-            pipe: true,
-            executablePath: process.env.OVERRIDE_CHROME_EXECUTABLE_PATH,
-            args: getChromeLaunchArgs(),
-        }).catch((err: any) => {
-            this.logger.error(`Unknown firebase issue, just die fast.`, { err });
-            process.nextTick(() => {
-                this.emit('error', err);
-                // process.exit(1);
+    await this.newPage("beware_deadlock").then((r) =>
+      this.__loadedPage.push(r),
+    );
+
+    this.emit("ready");
+  }
+
+  async newPage<T>(bewareDeadLock: any = false) {
+    if (!bewareDeadLock) {
+      await this.serviceReady();
+    }
+    const sn = this._sn++;
+    let page;
+    try {
+      const dedicatedContext = await this.browser.createBrowserContext();
+      page = await dedicatedContext.newPage();
+    } catch (err: any) {
+      this.logger.warn(`Failed to create page ${sn}`, { err });
+      this.browser.process()?.kill("SIGKILL");
+      throw new ServiceNodeResourceDrainError(
+        `This specific worker node failed to open a new page, try again.`,
+      );
+    }
+    const preparations = [];
+
+    preparations.push(page.setUserAgent(this.effectiveUA));
+    // preparations.push(page.setUserAgent(`Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)`));
+    // preparations.push(page.setUserAgent(`Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.0; +https://openai.com/gptbot)`));
+    preparations.push(page.setBypassCSP(true));
+    preparations.push(page.setViewport({ width: 1024, height: 1024 }));
+    preparations.push(
+      page.exposeFunction(this._REPORT_FUNCTION_NAME, (thing: T) => {
+        page.emit(this._REPORT_FUNCTION_NAME, thing);
+      }),
+    );
+    preparations.push(
+      page.exposeFunction("setViewport", (viewport: Viewport | null) => {
+        page.setViewport(viewport).catch(() => undefined);
+      }),
+    );
+    preparations.push(page.evaluateOnNewDocument(SCRIPT_TO_INJECT_INTO_FRAME));
+
+    await Promise.all(preparations);
+
+    this.snMap.set(page, sn);
+    this.logger.debug(`Page ${sn} created.`);
+    this.lastPageCratedAt = Date.now();
+    this.livePages.add(page);
+
+    return page;
+  }
+
+  async getNextPage() {
+    let thePage: Page | undefined;
+    if (this.__loadedPage.length) {
+      thePage = this.__loadedPage.shift();
+      if (this.__loadedPage.length <= 1) {
+        process.nextTick(() => {
+          this.newPage()
+            .then((r) => this.__loadedPage.push(r))
+            .catch((err) => {
+              this.logger.warn(`Failed to load new page ahead of time`, {
+                err,
+              });
             });
-            return Promise.reject(err);
         });
-        this.browser.once('disconnected', () => {
-            this.logger.warn(`Browser disconnected`);
-            if (this.browser) {
-                this.emit('crippled');
-            }
-            process.nextTick(() => this.serviceReady());
-        });
-        this.ua = await this.browser.userAgent();
-        this.logger.info(`Browser launched: ${this.browser.process()?.pid}, ${this.ua}`);
-        this.effectiveUA = this.ua.replace(/Headless/i, '').replace('Mozilla/5.0 (X11; Linux x86_64)', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-        this.curlControl.impersonateChrome(this.effectiveUA);
-
-        await this.newPage('beware_deadlock').then((r) => this.__loadedPage.push(r));
-
-        this.emit('ready');
+      }
     }
 
-    async newPage<T>(bewareDeadLock: any = false) {
-        if (!bewareDeadLock) {
-            await this.serviceReady();
-        }
-        const sn = this._sn++;
-        let page;
+    if (!thePage) {
+      thePage = await this.newPage();
+    }
+
+    const timer = setTimeout(() => {
+      this.logger.warn(
+        `Page is not allowed to live past 5 minutes, ditching page ${this.snMap.get(thePage!)}...`,
+      );
+      this.ditchPage(thePage!);
+    }, 300 * 1000);
+
+    this.finalizerMap.set(thePage, timer);
+
+    return thePage;
+  }
+
+  async ditchPage(page: Page) {
+    if (this.finalizerMap.has(page)) {
+      clearTimeout(this.finalizerMap.get(page)!);
+      this.finalizerMap.delete(page);
+    }
+    if (page.isClosed()) {
+      return;
+    }
+    const sn = this.snMap.get(page);
+    this.logger.debug(`Closing page ${sn}`);
+    await Promise.race([
+      (async () => {
+        const ctx = page.browserContext();
         try {
-            const dedicatedContext = await this.browser.createBrowserContext();
-            page = await dedicatedContext.newPage();
-        } catch (err: any) {
-            this.logger.warn(`Failed to create page ${sn}`, { err });
-            this.browser.process()?.kill('SIGKILL');
-            throw new ServiceNodeResourceDrainError(`This specific worker node failed to open a new page, try again.`);
+          await page.close();
+        } finally {
+          await ctx.close();
         }
-        const preparations = [];
+      })(),
+      delay(5000),
+    ]).catch((err) => {
+      this.logger.error(`Failed to destroy page ${sn}`, { err });
+    });
+    this.livePages.delete(page);
+  }
 
-        preparations.push(page.setUserAgent(this.effectiveUA));
-        // preparations.push(page.setUserAgent(`Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)`));
-        // preparations.push(page.setUserAgent(`Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.0; +https://openai.com/gptbot)`));
-        preparations.push(page.setBypassCSP(true));
-        preparations.push(page.setViewport({ width: 1024, height: 1024 }));
-        preparations.push(page.exposeFunction(this._REPORT_FUNCTION_NAME, (thing: T) => {
-            page.emit(this._REPORT_FUNCTION_NAME, thing);
-        }));
-        preparations.push(page.exposeFunction('setViewport', (viewport: Viewport | null) => {
-            page.setViewport(viewport).catch(() => undefined);
-        }));
-        preparations.push(page.evaluateOnNewDocument(SCRIPT_TO_INJECT_INTO_FRAME));
+  async controlledScrap<T>(
+    parsedUrl: URL,
+    func: (this: void) => Promise<T>,
+    options: ScrappingOptions = {},
+  ): Promise<T> {
+    // parsedUrl.search = '';
+    const url = parsedUrl.toString();
+    const page = await this.getNextPage();
+    this.lifeCycleTrack.set(page, this.asyncLocalContext.ctx);
+    page.on("response", (_resp) => {
+      this.blackHoleDetector.itWorked();
+    });
+    page.on("request", async (req) => {
+      if (req.isInterceptResolutionHandled()) {
+        return;
+      }
+      const reqUrlParsed = new URL(req.url());
+      if (!reqUrlParsed.protocol.startsWith("http")) {
+        const overrides = req.continueRequestOverrides();
 
-        await Promise.all(preparations);
-
-        this.snMap.set(page, sn);
-        this.logger.debug(`Page ${sn} created.`);
-        this.lastPageCratedAt = Date.now();
-        this.livePages.add(page);
-
-        return page;
-    }
-
-    async getNextPage() {
-        let thePage: Page | undefined;
-        if (this.__loadedPage.length) {
-            thePage = this.__loadedPage.shift();
-            if (this.__loadedPage.length <= 1) {
-                process.nextTick(() => {
-                    this.newPage()
-                        .then((r) => this.__loadedPage.push(r))
-                        .catch((err) => {
-                            this.logger.warn(`Failed to load new page ahead of time`, { err });
-                        });
-                });
-            }
-        }
-
-        if (!thePage) {
-            thePage = await this.newPage();
-        }
-
-        const timer = setTimeout(() => {
-            this.logger.warn(`Page is not allowed to live past 5 minutes, ditching page ${this.snMap.get(thePage!)}...`);
-            this.ditchPage(thePage!);
-        }, 300 * 1000);
-
-        this.finalizerMap.set(thePage, timer);
-
-        return thePage;
-    }
-
-    async ditchPage(page: Page) {
-        if (this.finalizerMap.has(page)) {
-            clearTimeout(this.finalizerMap.get(page)!);
-            this.finalizerMap.delete(page);
-        }
-        if (page.isClosed()) {
-            return;
-        }
-        const sn = this.snMap.get(page);
-        this.logger.debug(`Closing page ${sn}`);
-        await Promise.race([
-            (async () => {
-                const ctx = page.browserContext();
-                try {
-                    await page.close();
-                } finally {
-                    await ctx.close();
-                }
-            })(),
-            delay(5000)
-        ]).catch((err) => {
-            this.logger.error(`Failed to destroy page ${sn}`, { err });
-        });
-        this.livePages.delete(page);
-    }
-
-    async controlledScrap<T>(parsedUrl: URL, func: (this: void) => Promise<T>, options: ScrappingOptions = {}): Promise<T> {
-        // parsedUrl.search = '';
-        const url = parsedUrl.toString();
-        const page = await this.getNextPage();
-        this.lifeCycleTrack.set(page, this.asyncLocalContext.ctx);
-        page.on('response', (_resp) => {
-            this.blackHoleDetector.itWorked();
-        });
-        page.on('request', async (req) => {
-            if (req.isInterceptResolutionHandled()) {
-                return;
-            };
-            const reqUrlParsed = new URL(req.url());
-            if (!reqUrlParsed.protocol.startsWith('http')) {
-                const overrides = req.continueRequestOverrides();
-
-                return req.continue(overrides, 0);
-            }
-            const typ = req.resourceType();
-            if (typ === 'media' || typ === 'font' || typ === 'image' || typ === 'stylesheet') {
-                // Non-cooperative answer to block all media requests.
-                return req.abort('blockedbyclient');
-            }
-            if (!options.proxyResources) {
-                const isDocRequest = ['document', 'xhr', 'fetch', 'websocket', 'prefetch', 'eventsource', 'ping'].includes(typ);
-                if (!isDocRequest) {
-                    if (options.extraHeaders) {
-                        const overrides = req.continueRequestOverrides();
-                        const continueArgs = [{
-                            ...overrides,
-                            headers: {
-                                ...req.headers(),
-                                ...overrides?.headers,
-                                ...options.extraHeaders,
-                            }
-                        }, 1] as const;
-
-                        return req.continue(continueArgs[0], continueArgs[1]);
-                    }
-                    const overrides = req.continueRequestOverrides();
-
-                    return req.continue(overrides, 0);
-                }
-            }
-            const sideload = options.sideLoad;
-
-            const impersonate = sideload?.impersonate[reqUrlParsed.href];
-            if (impersonate) {
-                let body;
-                if (impersonate.body) {
-                    body = await readFile(await impersonate.body.filePath);
-                    if (req.isInterceptResolutionHandled()) {
-                        return;
-                    }
-                }
-                return req.respond({
-                    status: impersonate.status,
-                    headers: impersonate.headers,
-                    contentType: impersonate.contentType,
-                    body: body ? Uint8Array.from(body) : undefined,
-                }, 999);
-            }
-
-            const proxy = options.proxyUrl || sideload?.proxyOrigin?.[reqUrlParsed.origin];
-            const ctx = this.lifeCycleTrack.get(page);
-            if (proxy && ctx) {
-                return await this.asyncLocalContext.bridge(ctx, async () => {
-                    try {
-                        const curled = await this.curlControl.sideLoad(reqUrlParsed, {
-                            ...options,
-                            method: req.method(),
-                            body: req.postData(),
-                            extraHeaders: {
-                                ...req.headers(),
-                                ...options.extraHeaders,
-                            },
-                            proxyUrl: proxy
-                        });
-                        if (req.isInterceptResolutionHandled()) {
-                            return;
-                        };
-
-                        if (curled.chain.length === 1) {
-                            if (!curled.file) {
-                                return req.respond({
-                                    status: curled.status,
-                                    headers: _.omit(curled.headers, 'result'),
-                                    contentType: curled.contentType,
-                                }, 3);
-                            }
-                            const body = await readFile(await curled.file.filePath);
-                            if (req.isInterceptResolutionHandled()) {
-                                return;
-                            };
-                            return req.respond({
-                                status: curled.status,
-                                headers: _.omit(curled.headers, 'result'),
-                                contentType: curled.contentType,
-                                body: Uint8Array.from(body),
-                            }, 3);
-                        }
-                        options.sideLoad ??= curled.sideLoadOpts;
-                        _.merge(options.sideLoad, curled.sideLoadOpts);
-                        const firstReq = curled.chain[0];
-
-                        return req.respond({
-                            status: (firstReq.result as any)!.code,
-                            headers: _.omit(firstReq, 'result'),
-                        }, 3);
-                    } catch (err: any) {
-                        this.logger.warn(`Failed to sideload browser request ${reqUrlParsed.origin}`, { href: reqUrlParsed.href, err, proxy });
-                    }
-                    if (req.isInterceptResolutionHandled()) {
-                        return;
-                    };
-                    const overrides = req.continueRequestOverrides();
-                    const continueArgs = [{
-                        ...overrides,
-                        headers: {
-                            ...req.headers(),
-                            ...overrides?.headers,
-                            ...options.extraHeaders,
-                        }
-                    }, 1] as const;
-
-                    return req.continue(continueArgs[0], continueArgs[1]);
-                });
-            }
-
-            if (req.isInterceptResolutionHandled()) {
-                return;
-            };
+        return req.continue(overrides, 0);
+      }
+      const typ = req.resourceType();
+      if (
+        typ === "media" ||
+        typ === "font" ||
+        typ === "image" ||
+        typ === "stylesheet"
+      ) {
+        // Non-cooperative answer to block all media requests.
+        return req.abort("blockedbyclient");
+      }
+      if (!options.proxyResources) {
+        const isDocRequest = [
+          "document",
+          "xhr",
+          "fetch",
+          "websocket",
+          "prefetch",
+          "eventsource",
+          "ping",
+        ].includes(typ);
+        if (!isDocRequest) {
+          if (options.extraHeaders) {
             const overrides = req.continueRequestOverrides();
-            const continueArgs = [{
+            const continueArgs = [
+              {
                 ...overrides,
                 headers: {
-                    ...req.headers(),
-                    ...overrides?.headers,
-                    ...options.extraHeaders,
-                }
-            }, 1] as const;
+                  ...req.headers(),
+                  ...overrides?.headers,
+                  ...options.extraHeaders,
+                },
+              },
+              1,
+            ] as const;
 
             return req.continue(continueArgs[0], continueArgs[1]);
+          }
+          const overrides = req.continueRequestOverrides();
+
+          return req.continue(overrides, 0);
+        }
+      }
+      const sideload = options.sideLoad;
+
+      const impersonate = sideload?.impersonate[reqUrlParsed.href];
+      if (impersonate) {
+        let body;
+        if (impersonate.body) {
+          body = await readFile(await impersonate.body.filePath);
+          if (req.isInterceptResolutionHandled()) {
+            return;
+          }
+        }
+        return req.respond(
+          {
+            status: impersonate.status,
+            headers: impersonate.headers,
+            contentType: impersonate.contentType,
+            body: body ? Uint8Array.from(body) : undefined,
+          },
+          999,
+        );
+      }
+
+      const proxy =
+        options.proxyUrl || sideload?.proxyOrigin?.[reqUrlParsed.origin];
+      const ctx = this.lifeCycleTrack.get(page);
+      if (proxy && ctx) {
+        return await this.asyncLocalContext.bridge(ctx, async () => {
+          try {
+            const curled = await this.curlControl.sideLoad(reqUrlParsed, {
+              ...options,
+              method: req.method(),
+              body: req.postData(),
+              extraHeaders: {
+                ...req.headers(),
+                ...options.extraHeaders,
+              },
+              proxyUrl: proxy,
+            });
+            if (req.isInterceptResolutionHandled()) {
+              return;
+            }
+
+            if (curled.chain.length === 1) {
+              if (!curled.file) {
+                return req.respond(
+                  {
+                    status: curled.status,
+                    headers: _.omit(curled.headers, "result"),
+                    contentType: curled.contentType,
+                  },
+                  3,
+                );
+              }
+              const body = await readFile(await curled.file.filePath);
+              if (req.isInterceptResolutionHandled()) {
+                return;
+              }
+              return req.respond(
+                {
+                  status: curled.status,
+                  headers: _.omit(curled.headers, "result"),
+                  contentType: curled.contentType,
+                  body: Uint8Array.from(body),
+                },
+                3,
+              );
+            }
+            options.sideLoad ??= curled.sideLoadOpts;
+            _.merge(options.sideLoad, curled.sideLoadOpts);
+            const firstReq = curled.chain[0];
+
+            return req.respond(
+              {
+                status: (firstReq.result as any)!.code,
+                headers: _.omit(firstReq, "result"),
+              },
+              3,
+            );
+          } catch (err: any) {
+            this.logger.warn(
+              `Failed to sideload browser request ${reqUrlParsed.origin}`,
+              { href: reqUrlParsed.href, err, proxy },
+            );
+          }
+          if (req.isInterceptResolutionHandled()) {
+            return;
+          }
+          const overrides = req.continueRequestOverrides();
+          const continueArgs = [
+            {
+              ...overrides,
+              headers: {
+                ...req.headers(),
+                ...overrides?.headers,
+                ...options.extraHeaders,
+              },
+            },
+            1,
+          ] as const;
+
+          return req.continue(continueArgs[0], continueArgs[1]);
         });
-        await page.setRequestInterception(true);
+      }
 
-        const sn = this.snMap.get(page);
-        this.logger.info(`Page ${sn}: Scraping ${url}`, { url });
+      if (req.isInterceptResolutionHandled()) {
+        return;
+      }
+      const overrides = req.continueRequestOverrides();
+      const continueArgs = [
+        {
+          ...overrides,
+          headers: {
+            ...req.headers(),
+            ...overrides?.headers,
+            ...options.extraHeaders,
+          },
+        },
+        1,
+      ] as const;
 
-        await page.evaluateOnNewDocument(`(function () {
+      return req.continue(continueArgs[0], continueArgs[1]);
+    });
+    await page.setRequestInterception(true);
+
+    const sn = this.snMap.get(page);
+    this.logger.info(`Page ${sn}: Scraping ${url}`, { url });
+
+    await page.evaluateOnNewDocument(`(function () {
 if (window.top !== window.self) {
     return;
 }
@@ -579,130 +655,132 @@ func().then((result) => {
 
 })();`);
 
-        if (options.locale) {
-            // Add headers via request interception to walk around this bug
-            // https://github.com/puppeteer/puppeteer/issues/10235
-            // await page.setExtraHTTPHeaders({
-            //     'Accept-Language': options.locale
-            // });
+    if (options.locale) {
+      // Add headers via request interception to walk around this bug
+      // https://github.com/puppeteer/puppeteer/issues/10235
+      // await page.setExtraHTTPHeaders({
+      //     'Accept-Language': options.locale
+      // });
 
-            await page.evaluateOnNewDocument(() => {
-                Object.defineProperty(navigator, "language", {
-                    get: function () {
-                        return options.locale;
-                    }
-                });
-                Object.defineProperty(navigator, "languages", {
-                    get: function () {
-                        return [options.locale];
-                    }
-                });
-            });
-        }
-
-        if (options.cookies) {
-            const mapped = options.cookies.map((x) => {
-                const draft: CookieParam = {
-                    name: x.name,
-                    value: encodeURIComponent(x.value),
-                    secure: x.secure,
-                    domain: x.domain,
-                    path: x.path,
-                    expires: x.expires ? Math.floor(x.expires.valueOf() / 1000) : undefined,
-                    sameSite: x.sameSite as any,
-                };
-                if (!draft.expires && x.maxAge) {
-                    draft.expires = Math.floor(Date.now() / 1000) + x.maxAge;
-                }
-                if (!draft.domain) {
-                    draft.url = parsedUrl.toString();
-                }
-
-                return draft;
-            });
-            try {
-                await page.setCookie(...mapped);
-            } catch (err: any) {
-                this.logger.warn(`Page ${sn}: Failed to set cookies`, { err });
-                throw new ParamValidationError({
-                    path: 'cookies',
-                    message: `Failed to set cookies: ${err?.message}`
-                });
-            }
-        }
-        if (options.overrideUserAgent) {
-            await page.setUserAgent(options.overrideUserAgent);
-        }
-        if (options.viewport) {
-            await page.setViewport(options.viewport);
-        }
-
-        const resultDeferred = Defer<T>();
-        const crippleListener = () => resultDeferred.reject(new ServiceCrashedError({ message: `Browser crashed, try again` }));
-        this.once('crippled', crippleListener);
-        resultDeferred.promise.finally(() => {
-            this.off('crippled', crippleListener);
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, "language", {
+          get: function () {
+            return options.locale;
+          },
         });
-        const hdl = (s: {
-            err?: any;
-            data?: T;
-        }) => {
-            if (s.err) {
-                resultDeferred.reject(s.err);
-            }
-            resultDeferred.resolve(s.data);
-        };
-        page.on(this._REPORT_FUNCTION_NAME, hdl as any);
-        page.once('abuse', (event: any) => {
-            this.emit('abuse', { ...event, url: parsedUrl });
-
-            resultDeferred.reject(
-                new SecurityCompromiseError(`Abuse detected: ${event.reason}`)
-            );
+        Object.defineProperty(navigator, "languages", {
+          get: function () {
+            return [options.locale];
+          },
         });
-
-        const timeout = options.timeoutMs || 45_000;
-        const goToOptions: GoToOptions = {
-            waitUntil: ['domcontentloaded', 'load'],
-            timeout,
-        };
-
-        if (options.referer) {
-            goToOptions.referer = options.referer;
-        }
-
-        const gotoPromise = page.goto(url, goToOptions)
-            .catch((err) => {
-                if (err instanceof TimeoutError) {
-                    this.logger.warn(`Page ${sn}: Browsing of ${url} timed out`, { err });
-                    throw new AssertionFailureError({
-                        message: `Failed to goto ${url}: ${err}`,
-                        cause: err,
-                    });
-                }
-
-                this.logger.warn(`Page ${sn}: Browsing of ${url} aborted`, { err });
-                return undefined;
-            });
-
-        const controlTimeout = setTimeout(() => {
-            resultDeferred.reject(new TimeoutError(`Control function did not respond in time`));
-        }, timeout);
-        controlTimeout.unref();
-
-        try {
-            return await Promise.race([
-                resultDeferred.promise,
-                gotoPromise.then(() => resultDeferred.promise),
-            ]);
-        } finally {
-            clearTimeout(controlTimeout);
-            page.off(this._REPORT_FUNCTION_NAME, hdl as any);
-            this.ditchPage(page);
-            resultDeferred.resolve();
-        }
+      });
     }
 
+    if (options.cookies) {
+      const mapped = options.cookies.map((x) => {
+        const draft: CookieParam = {
+          name: x.name,
+          value: encodeURIComponent(x.value),
+          secure: x.secure,
+          domain: x.domain,
+          path: x.path,
+          expires: x.expires
+            ? Math.floor(x.expires.valueOf() / 1000)
+            : undefined,
+          sameSite: x.sameSite as any,
+        };
+        if (!draft.expires && x.maxAge) {
+          draft.expires = Math.floor(Date.now() / 1000) + x.maxAge;
+        }
+        if (!draft.domain) {
+          draft.url = parsedUrl.toString();
+        }
+
+        return draft;
+      });
+      try {
+        await page.setCookie(...mapped);
+      } catch (err: any) {
+        this.logger.warn(`Page ${sn}: Failed to set cookies`, { err });
+        throw new ParamValidationError({
+          path: "cookies",
+          message: `Failed to set cookies: ${err?.message}`,
+        });
+      }
+    }
+    if (options.overrideUserAgent) {
+      await page.setUserAgent(options.overrideUserAgent);
+    }
+    if (options.viewport) {
+      await page.setViewport(options.viewport);
+    }
+
+    const resultDeferred = Defer<T>();
+    const crippleListener = () =>
+      resultDeferred.reject(
+        new ServiceCrashedError({ message: `Browser crashed, try again` }),
+      );
+    this.once("crippled", crippleListener);
+    resultDeferred.promise.finally(() => {
+      this.off("crippled", crippleListener);
+    });
+    const hdl = (s: { err?: any; data?: T }) => {
+      if (s.err) {
+        resultDeferred.reject(s.err);
+      }
+      resultDeferred.resolve(s.data);
+    };
+    page.on(this._REPORT_FUNCTION_NAME, hdl as any);
+    page.once("abuse", (event: any) => {
+      this.emit("abuse", { ...event, url: parsedUrl });
+
+      resultDeferred.reject(
+        new SecurityCompromiseError(`Abuse detected: ${event.reason}`),
+      );
+    });
+
+    const timeout = options.timeoutMs || 45_000;
+    const goToOptions: GoToOptions = {
+      waitUntil: ["domcontentloaded", "load"],
+      timeout,
+    };
+
+    if (options.referer) {
+      goToOptions.referer = options.referer;
+    }
+
+    const gotoPromise = page.goto(url, goToOptions).catch((err) => {
+      if (err instanceof TimeoutError) {
+        this.logger.warn(`Page ${sn}: Browsing of ${url} timed out`, { err });
+        throw new AssertionFailureError({
+          message: `Failed to goto ${url}: ${err}`,
+          cause: err,
+        });
+      }
+
+      this.logger.warn(`Page ${sn}: Browsing of ${url} aborted`, { err });
+      return undefined;
+    });
+
+    const controlTimeout = setTimeout(() => {
+      resultDeferred.reject(
+        new TimeoutError(`Control function did not respond in time`),
+      );
+    }, timeout);
+    controlTimeout.unref();
+
+    try {
+      return await Promise.race([
+        resultDeferred.promise,
+        gotoPromise.then(() => resultDeferred.promise),
+      ]);
+    } finally {
+      clearTimeout(controlTimeout);
+      page.off(this._REPORT_FUNCTION_NAME, hdl as any);
+      this.ditchPage(page);
+      resultDeferred.resolve();
+    }
+  }
 }
 
 const puppeteerControl = container.resolve(SERPSpecializedPuppeteerControl);
