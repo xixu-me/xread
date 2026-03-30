@@ -18,6 +18,33 @@ updates:
       - dependency-name: typescript
         update-types:
           - version-update:semver-major
+      - dependency-name: "@koa/bodyparser"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: htmlparser2
+        update-types:
+          - version-update:semver-major
+      - dependency-name: koa
+        update-types:
+          - version-update:semver-major
+      - dependency-name: maxmind
+        update-types:
+          - version-update:semver-major
+      - dependency-name: pdfjs-dist
+        update-types:
+          - version-update:semver-major
+      - dependency-name: puppeteer
+        update-types:
+          - version-update:semver-major
+      - dependency-name: set-cookie-parser
+        update-types:
+          - version-update:semver-major
+      - dependency-name: simple-zstd
+        update-types:
+          - version-update:semver-major
+      - dependency-name: stripe
+        update-types:
+          - version-update:semver-major
     groups:
       production-dependencies:
         dependency-type: production
