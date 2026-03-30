@@ -37,6 +37,10 @@ export class GoogleSERP extends AsyncService {
         this.emit('ready');
     }
 
+    override dependencyReady(timeoutMilliseconds = SERP_BOOT_TIMEOUT_MS) {
+        return super.dependencyReady(timeoutMilliseconds);
+    }
+
     @retryWith((err) => {
         if (err instanceof ServiceBadApproachError) {
             return false;

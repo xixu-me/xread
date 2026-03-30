@@ -64,6 +64,10 @@ export class SERPStandAloneServer extends KoaServer {
         await super.init();
     }
 
+    override dependencyReady(timeoutMilliseconds = STANDALONE_BOOT_TIMEOUT_MS) {
+        return super.dependencyReady(timeoutMilliseconds);
+    }
+
     async walkForAssets() {
         const files = await FsWalk.walkOut(path.resolve(__dirname, '..', '..', 'public'));
 
