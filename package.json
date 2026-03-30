@@ -11,7 +11,7 @@
     "build:watch": "tsc -p . -w",
     "build:clean": "node -e \"require('fs').rmSync('./build',{recursive:true,force:true})\"",
     "serve": "npm run build && npm run start",
-    "debug": "npm run build && npm run dev",
+    "debug": "npm run build && npm run start",
     "start": "node ./build/stand-alone/crawl.js",
     "dry-run": "NODE_ENV=dry-run node ./build/stand-alone/search.js"
   },
