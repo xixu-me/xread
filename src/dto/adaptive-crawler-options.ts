@@ -1,5 +1,8 @@
 import { Also, AutoCastable, Prop, RPC_CALL_ENVIRONMENT } from 'civkit';
-import type { Request, Response } from 'express';
+
+type HeaderReadableRequest = {
+    get(name: string): string | undefined;
+};
 
 
 @Also({
@@ -42,8 +45,7 @@ export class AdaptiveCrawlerOptions extends AutoCastable {
     static override from(input: any) {
         const instance = super.from(input) as AdaptiveCrawlerOptions;
         const ctx = Reflect.get(input, RPC_CALL_ENVIRONMENT) as {
-            req: Request,
-            res: Response,
+            req: HeaderReadableRequest,
         } | undefined;
 
         let maxPages = parseInt(ctx?.req.get('x-max-pages') || '');
