@@ -12,7 +12,7 @@ Xread 是一个面向 LLM 工作流的开源、自托管网页摄取服务，提
 - `search`：执行搜索并返回便于直接粘贴进提示词的文本结果
 - `serp`：执行搜索并返回结构化 JSON
 
-它是公开 [Jina AI Reader](https://jina.ai/reader) 存储库 [jina-ai/reader](https://github.com/jina-ai/reader) 的一个独立分叉版本，移除了原始内部 `thinapps-shared` 依赖，并适配为自托管使用。
+它是公开 [Jina AI Reader](https://jina.ai/reader) 存储库 [`jina-ai/reader`](https://github.com/jina-ai/reader) 的一个独立分叉版本，移除了原始内部 `thinapps-shared` 依赖，并适配为自托管使用。
 
 ## 该存储库额外增加了什么
 
