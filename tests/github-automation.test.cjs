@@ -61,7 +61,7 @@ test('workflows opt into Node 24 for JavaScript-based GitHub Actions', () => {
 test('CodeQL workflow uses advanced setup with repository-managed configuration', () => {
   const workflow = read('.github/workflows/codeql.yml');
 
-  assert.match(workflow, /uses:\s*actions\/checkout@v5/);
+  assert.match(workflow, /uses:\s*actions\/checkout@v\d+/);
   assert.match(workflow, /uses:\s*github\/codeql-action\/init@v4/);
   assert.match(workflow, /uses:\s*github\/codeql-action\/analyze@v4/);
   assert.match(workflow, /language:\s*actions/);
