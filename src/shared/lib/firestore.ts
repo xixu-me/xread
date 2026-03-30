@@ -2,6 +2,7 @@ import { AutoCastable } from "civkit/civ-rpc";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import fsp from "fs/promises";
+import os from "os";
 import path from "path";
 
 type WhereOp = "==" | ">=" | "<=" | ">" | "<";
@@ -83,10 +84,44 @@ function applyPatch(base: any, patch: any) {
 }
 
 class LocalStore {
-  rootDir = path.resolve(process.env.LOCAL_DB_ROOT || ".cache/xread/db");
+  rootDir = this.resolveWritableRoot(
+    process.env.LOCAL_DB_ROOT || ".cache/xread/db",
+  );
 
   constructor() {
     fs.mkdirSync(this.rootDir, { recursive: true });
+  }
+
+  protected resolveWritableRoot(preferredRoot: string) {
+    const candidates = [
+      path.resolve(preferredRoot),
+      path.join(os.tmpdir(), "xread", "db"),
+    ];
+    let lastError;
+
+    for (const candidate of [...new Set(candidates)]) {
+      try {
+        fs.mkdirSync(candidate, { recursive: true });
+        const probe = path.join(
+          candidate,
+          `.write-test-${process.pid}-${randomUUID()}`,
+        );
+        fs.writeFileSync(probe, "");
+        fs.rmSync(probe, { force: true });
+
+        if (candidate !== path.resolve(preferredRoot)) {
+          console.warn(
+            `[xread] Local DB root ${path.resolve(preferredRoot)} is not writable, falling back to ${candidate}`,
+          );
+        }
+
+        return candidate;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError;
   }
 
   filePath(collectionName: string) {
