@@ -443,7 +443,7 @@ export function minimalStealth() {
      */
     utils.replaceObjPathWithProxy = (objPath, handler) => {
         const { objName, propName } = utils.splitObjPath(objPath);
-        const obj = eval(objName); // eslint-disable-line no-eval
+        const obj = eval(objName);
         return utils.replaceWithProxy(obj, propName, handler);
     };
 
@@ -498,7 +498,7 @@ export function minimalStealth() {
         return (Object.fromEntries || fromEntries)(
             Object.entries(fnObj)
                 .filter(([, value]) => typeof value === 'function')
-                .map(([key, value]) => [key, value.toString()]) // eslint-disable-line no-eval
+                .map(([key, value]) => [key, value.toString()])
         );
     };
 
@@ -513,10 +513,10 @@ export function minimalStealth() {
             Object.entries(fnStrObj).map(([key, value]) => {
                 if (value.startsWith('function')) {
                     // some trickery is needed to make oldschool functions work :-)
-                    return [key, eval(`() => ${value}`)()]; // eslint-disable-line no-eval
+                    return [key, eval(`() => ${value}`)()];
                 } else {
                     // arrow functions just work
-                    return [key, eval(value)]; // eslint-disable-line no-eval
+                    return [key, eval(value)];
                 }
             })
         );

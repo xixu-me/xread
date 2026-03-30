@@ -8,7 +8,7 @@ export function cleanAttribute(attribute: string | null) {
 export function tryDecodeURIComponent(input: string) {
     try {
         return decodeURIComponent(input);
-    } catch (err) {
+    } catch (_err) {
         if (URL.canParse(input, 'http://localhost:3000')) {
             return input;
         }

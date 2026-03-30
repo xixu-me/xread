@@ -19,6 +19,8 @@ test('package.json exposes the security audit script and excludes removed cloud 
   assert.ok(!('firebase-admin' in packageJson.dependencies));
   assert.ok(!('firebase-functions' in packageJson.dependencies));
   assert.ok(!('firebase-functions-test' in packageJson.devDependencies));
+  assert.ok(!('openai' in packageJson.dependencies));
+  assert.ok(!('replicate' in packageJson.devDependencies));
 });
 
 test('security governance workflow enforces npm audit policy and uploads reports', () => {

@@ -49,6 +49,17 @@ export const md5Hasher = new HashManager('md5', 'hex');
 
 const gfmPlugin = require('turndown-plugin-gfm');
 const highlightRegExp = /highlight-(?:text|source)-([a-z0-9]+)/;
+const disallowedSummaryLinkSchemes = ['file:', 'javascript:', 'data:', 'vbscript:'];
+
+function hasDisallowedSummaryLinkScheme(href: string) {
+    const normalized = href.trim().toLowerCase();
+
+    return disallowedSummaryLinkSchemes.some((scheme) => normalized.startsWith(scheme));
+}
+
+function escapeMarkdownTitleAttribute(title: string) {
+    return title.replace(/[\\"]/g, '\\$&');
+}
 
 export function highlightedCodeBlock(turndownService: TurndownService) {
     turndownService.addRule('highlightedCodeBlock', {
@@ -426,7 +437,7 @@ export class SnapshotFormatter extends AsyncService {
             if (this.threadLocal.get('withLinksSummary') === 'all') {
                 formatted.links = links;
             } else {
-                formatted.links = _(links).filter(([_label, href]) => !href.startsWith('file:') && !href.startsWith('javascript:')).uniqBy(1).fromPairs().value();
+                formatted.links = _(links).filter(([_label, href]) => !hasDisallowedSummaryLinkScheme(href)).uniqBy(1).fromPairs().value();
             }
         }
 
@@ -559,7 +570,7 @@ ${suffixMixins.length ? `\n${suffixMixins.join('\n\n')}\n` : ''}`;
             if (this.threadLocal.get('withLinksSummary') === 'all') {
                 mixin.links = inferred.links;
             } else {
-                mixin.links = _(inferred.links).filter(([_label, href]) => !href.startsWith('file:') && !href.startsWith('javascript:')).uniqBy(1).fromPairs().value();
+                mixin.links = _(inferred.links).filter(([_label, href]) => !hasDisallowedSummaryLinkScheme(href)).uniqBy(1).fromPairs().value();
             }
         }
         if (snapshot.status) {
@@ -680,7 +691,7 @@ ${suffixMixins.length ? `\n${suffixMixins.join('\n\n')}\n` : ''}`;
             replacement: function (this: { references: string[]; }, content, node: any) {
                 var href = node.getAttribute('href');
                 let title = cleanAttribute(node.getAttribute('title'));
-                if (title) title = ` "${title.replace(/"/g, '\\"')}"`;
+                if (title) title = ` "${escapeMarkdownTitleAttribute(title)}"`;
                 let replacement;
                 let reference;
                 const fixedContent = content.replace(/\s+/g, ' ').trim();
