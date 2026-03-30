@@ -77,7 +77,7 @@
     "firebase-functions-test": "^3.0.0",
     "pino-pretty": "^13.0.0",
     "replicate": "^0.16.1",
-    "typescript": "^5.5.4"
+    "typescript": "^6.0.2"
   },
   "private": true,
   "exports": {
