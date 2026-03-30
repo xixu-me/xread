@@ -1,0 +1,2 @@
+export const STANDALONE_BOOT_TIMEOUT_MS = 90_000;
+export const SERP_BOOT_TIMEOUT_MS = 90_000;

@@ -29,6 +29,7 @@ import { CurlControl } from '../services/curl';
 import { LmControl } from '../services/lm';
 import { tryDecodeURIComponent } from '../utils/misc';
 import { CFBrowserRendering } from '../services/cf-browser-rendering';
+import { STANDALONE_BOOT_TIMEOUT_MS } from '../services/boot-timeouts';
 
 import { GlobalLogger } from '../services/logger';
 import { RateLimitControl, RateLimitDesc } from '../shared/services/rate-limit';
@@ -178,7 +179,7 @@ export class CrawlerHost extends RPCHost {
     }
 
     override async init() {
-        await this.dependencyReady();
+        await this.dependencyReady(STANDALONE_BOOT_TIMEOUT_MS);
 
         if (this.puppeteerControl.effectiveUA) {
             this.curlControl.impersonateChrome(this.puppeteerControl.effectiveUA);

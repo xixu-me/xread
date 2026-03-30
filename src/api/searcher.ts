@@ -19,6 +19,7 @@ import { Context, Ctx, Method, Param, RPCReflect } from '../services/registry';
 import { OutputServerEventStream } from '../lib/transform-server-event-stream';
 import { ApiTokenAccount, AuthDTO } from '../dto/auth';
 
+import { GoogleSERP } from '../services/serp/google';
 import { SerperBingSearchService, SerperGoogleSearchService } from '../services/serp/serper';
 import { toAsyncGenerator } from '../utils/misc';
 import { LRUCache } from 'lru-cache';
@@ -26,6 +27,9 @@ import { API_CALL_STATUS } from '../shared/db/api-roll';
 import { SERPResult } from '../db/searched';
 import { SerperSearchQueryParams } from '../shared/3rd-party/serper-search';
 import { WebSearchEntry } from '../services/serp/compat';
+import { SecretExposer } from '../shared/services/secrets';
+import { StandaloneSearchFallbackService } from '../services/serp/standalone-fallback';
+import { STANDALONE_BOOT_TIMEOUT_MS } from '../services/boot-timeouts';
 
 interface FormattedPage extends RealFormattedPage {
     favicon?: string;
@@ -62,8 +66,11 @@ export class SearcherHost extends RPCHost {
         protected globalLogger: GlobalLogger,
         protected rateLimitControl: RateLimitControl,
         protected threadLocal: AsyncLocalContext,
+        protected secretExposer: SecretExposer,
         protected crawler: CrawlerHost,
         protected snapshotFormatter: SnapshotFormatter,
+        protected googleSerp: GoogleSERP,
+        protected standaloneFallback: StandaloneSearchFallbackService,
         protected serperGoogle: SerperGoogleSearchService,
         protected serperBing: SerperBingSearchService,
     ) {
@@ -91,7 +98,7 @@ export class SearcherHost extends RPCHost {
     }
 
     override async init() {
-        await this.dependencyReady();
+        await this.dependencyReady(STANDALONE_BOOT_TIMEOUT_MS);
 
         this.emit('ready');
     }
@@ -712,24 +719,49 @@ export class SearcherHost extends RPCHost {
     }
 
     *iterProviders(preference?: string, _variant?: string) {
+        const preferScraping = !this.secretExposer.SERPER_SEARCH_API_KEY;
+        const includeSerper = Boolean(this.secretExposer.SERPER_SEARCH_API_KEY);
+
         if (preference === 'bing') {
-            yield this.serperBing;
-            yield this.serperGoogle;
-            yield this.serperGoogle;
+            if (preferScraping) {
+                yield this.standaloneFallback;
+            }
+            if (includeSerper) {
+                yield this.serperBing;
+                yield this.serperGoogle;
+            }
+            yield this.googleSerp;
+            if (includeSerper) {
+                yield this.serperGoogle;
+            }
 
             return;
         }
 
         if (preference === 'google') {
-            yield this.serperGoogle;
-            yield this.serperGoogle;
+            if (preferScraping) {
+                yield this.standaloneFallback;
+                yield this.googleSerp;
+            }
+            yield this.googleSerp;
+            if (includeSerper) {
+                yield this.serperGoogle;
+                yield this.serperGoogle;
+            }
 
             return;
         }
 
-        yield this.serperGoogle;
-        yield this.serperGoogle;
-        yield this.serperBing;
+        if (preferScraping) {
+            yield this.standaloneFallback;
+            yield this.googleSerp;
+        }
+        yield this.googleSerp;
+        if (includeSerper) {
+            yield this.serperGoogle;
+            yield this.serperGoogle;
+            yield this.serperBing;
+        }
     }
 
     async cachedSearch(variant: 'web' | 'news' | 'images', query: Record<string, any>, noCache?: boolean): Promise<WebSearchEntry[]> {
