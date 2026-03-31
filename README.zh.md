@@ -18,6 +18,7 @@ Xread 是一个面向 LLM 工作流的开源、自托管网页摄取服务，提
 
 - 围绕上游 Reader 存储库完成自托管封装
 - 本地优先的存储与缓存持久化
+- 以 Bun 为优先的贡献者工具链，覆盖本地开发、CI 和容器运行
 - 发布到 GHCR 的 OCI 镜像
 - 面向 Docker、Podman 和 `nerdctl` 的统一镜像、Compose 栈与环境变量部署资产
 - 已接好的 CI、CodeQL、依赖治理与容器发布流程
@@ -49,9 +50,9 @@ curl "http://127.0.0.1:8081/?q=example%20domain&num=5&provider=google"
 ### 本地运行
 
 ```bash
-npm ci
-npm run build
-npm start
+bun install --frozen-lockfile
+bun run build
+bun run start
 ```
 
 上面会启动 `crawl` 服务。独立入口包括：
@@ -63,15 +64,17 @@ npm start
 ### 使用容器引擎运行
 
 ```bash
-docker run --rm -p 8081:8081 ghcr.io/xixu-me/xread:latest
+docker run --rm --publish=8081:8081 ghcr.io/xixu-me/xread:latest
 ```
 
 已发布镜像默认启动 `crawl`。任何兼容 OCI 的容器引擎都可以运行它。下面示例使用 Docker 语法；如果要运行其他入口：
 
 ```bash
-docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
-docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
+docker run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
+docker run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
 ```
+
+如果需要从容器暴露多个端口，建议重复使用长参数形式，例如 `--publish=8080:8080 --publish=8081:8081`。
 
 ## 为自托管而构建
 
@@ -138,10 +141,10 @@ standalone 构建通过环境变量读取配置。
 ## 构建与验证
 
 ```bash
-npm run lint
-npm run security:audit
-npm run test:ci
-npm run build
+bun run lint
+bun run security:audit
+bun run test:ci
+bun run build
 ```
 
 镜像构建流程还会对三个 standalone 服务做启动演练。

@@ -1,4 +1,7 @@
+#!/usr/bin/env bun
+
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -6,12 +9,11 @@ const projectRoot = path.resolve(__dirname, "..");
 const baselinePath = path.join(
   projectRoot,
   "security",
-  "npm-audit-baseline.json",
+  "bun-audit-baseline.json",
 );
 const reportDirectory = path.join(projectRoot, "security-reports");
-const summaryJsonPath = path.join(reportDirectory, "npm-audit-summary.json");
-const summaryMarkdownPath = path.join(reportDirectory, "npm-audit-summary.md");
-
+const summaryJsonPath = path.join(reportDirectory, "bun-audit-summary.json");
+const summaryMarkdownPath = path.join(reportDirectory, "bun-audit-summary.md");
 const severityRank = {
   info: 0,
   low: 1,
@@ -20,8 +22,20 @@ const severityRank = {
   critical: 4,
 };
 
-function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+function runBun(args, options = {}) {
+  const result = spawnSync("bun", args, {
+    cwd: options.cwd ?? projectRoot,
+    encoding: "utf8",
+    env: options.env ?? process.env,
+    shell: process.platform === "win32",
+  });
+
+  if (![0, 1].includes(result.status ?? 0)) {
+    process.stderr.write(result.stderr || result.stdout || "bun command failed.\n");
+    process.exit(result.status ?? 1);
+  }
+
+  return result;
 }
 
 function readBaseline() {
@@ -30,66 +44,58 @@ function readBaseline() {
   return Array.isArray(parsed.entries) ? parsed.entries : [];
 }
 
-function runAudit(extraArgs) {
-  const result = spawnSync(npmCommand(), ["audit", "--json", ...extraArgs], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    env: process.env,
-  });
-
-  if (![0, 1].includes(result.status ?? 0)) {
-    process.stderr.write(
-      result.stderr || result.stdout || "npm audit failed.\n",
-    );
-    process.exit(result.status ?? 1);
+function parseAuditJson(result) {
+  const payload = (result.stdout || "").trim();
+  if (!payload) {
+    return {};
   }
+  return JSON.parse(payload);
+}
 
-  const combinedOutput =
-    `${result.stdout || ""}\n${result.stderr || ""}`.trim();
-  const jsonStart = combinedOutput.indexOf("{");
-  if (jsonStart === -1) {
-    if ((result.status ?? 0) === 0) {
-      return {
-        auditReportVersion: 2,
-        vulnerabilities: {},
-        metadata: {
-          vulnerabilities: {
-            info: 0,
-            low: 0,
-            moderate: 0,
-            high: 0,
-            critical: 0,
-            total: 0,
-          },
-        },
-      };
+function summarizeVulnerabilities(report) {
+  const summary = {
+    info: 0,
+    low: 0,
+    moderate: 0,
+    high: 0,
+    critical: 0,
+    total: 0,
+  };
+
+  for (const advisories of Object.values(report)) {
+    for (const advisory of advisories) {
+      const severity = advisory.severity || "info";
+      if (severity in summary) {
+        summary[severity] += 1;
+      } else {
+        summary.info += 1;
+      }
+      summary.total += 1;
     }
-
-    throw new Error("npm audit returned no JSON payload.");
   }
 
-  return JSON.parse(combinedOutput.slice(jsonStart));
+  return summary;
 }
 
 function toFindings(report, scope) {
-  return Object.entries(report.vulnerabilities || {}).map(([pkg, entry]) => {
-    const advisories = (entry.via || [])
-      .filter((item) => item && typeof item === "object" && item.title)
-      .map((item) => ({
-        source: item.source,
-        title: item.title,
-        severity: item.severity,
-        url: item.url,
-      }));
+  return Object.entries(report).map(([pkg, advisories]) => {
+    const highestSeverity = advisories.reduce((current, advisory) => {
+      const severity = advisory.severity || "info";
+      return severityRank[severity] > severityRank[current] ? severity : current;
+    }, "info");
 
     return {
       package: pkg,
       scope,
-      severity: entry.severity,
-      isDirect: Boolean(entry.isDirect),
-      nodes: entry.nodes || [],
-      effects: entry.effects || [],
-      advisories,
+      severity: highestSeverity,
+      advisories: advisories.map((advisory) => ({
+        id: advisory.id,
+        title: advisory.title,
+        severity: advisory.severity,
+        url: advisory.url,
+      })),
+      effects: [],
+      nodes: [],
     };
   });
 }
@@ -112,11 +118,13 @@ function formatFinding(finding, baselineEntry) {
       `advisories: ${finding.advisories.map((item) => item.title).join(" | ")}`,
     );
   }
-  if (finding.effects.length) {
-    notes.push(`effects: ${finding.effects.join(", ")}`);
-  }
-  if (finding.nodes.length) {
-    notes.push(`nodes: ${finding.nodes.join(", ")}`);
+  if (finding.advisories.some((item) => item.url)) {
+    notes.push(
+      `urls: ${finding.advisories
+        .map((item) => item.url)
+        .filter(Boolean)
+        .join(", ")}`,
+    );
   }
   if (baselineEntry) {
     notes.push(
@@ -132,7 +140,7 @@ function writeReports(payload) {
   fs.writeFileSync(summaryJsonPath, JSON.stringify(payload, null, 2) + "\n");
 
   const sections = [
-    "# npm audit summary",
+    "# bun audit summary",
     "",
     `- generatedAt: ${payload.generatedAt}`,
     `- blockingFindings: ${payload.blockingFindings.length}`,
@@ -156,15 +164,35 @@ function writeReports(payload) {
   fs.writeFileSync(summaryMarkdownPath, sections.join("\n") + "\n");
 }
 
+function createProductionAuditWorkspace() {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "xread-bun-audit-"));
+  fs.copyFileSync(
+    path.join(projectRoot, "package.json"),
+    path.join(tempRoot, "package.json"),
+  );
+  fs.copyFileSync(path.join(projectRoot, "bun.lock"), path.join(tempRoot, "bun.lock"));
+  return tempRoot;
+}
+
+function runAudit(extraArgs, options = {}) {
+  return parseAuditJson(runBun(["audit", "--json", ...extraArgs], options));
+}
+
 const baselineEntries = readBaseline();
-const productionAudit = runAudit(["--omit=dev"]);
 const fullAudit = runAudit([]);
+
+const productionWorkspace = createProductionAuditWorkspace();
+runBun(["install", "--frozen-lockfile", "--omit=dev", "--ignore-scripts"], {
+  cwd: productionWorkspace,
+});
+const productionAudit = runAudit([], { cwd: productionWorkspace });
+fs.rmSync(productionWorkspace, { recursive: true, force: true });
 
 const productionFindings = toFindings(productionAudit, "production");
 const fullFindings = toFindings(fullAudit, "development");
-
 const baselinedDevelopmentFindings = [];
 const blockingFindings = [];
+const productionPackages = new Set(productionFindings.map((finding) => finding.package));
 
 for (const finding of productionFindings) {
   if (severityRank[finding.severity] >= severityRank.high) {
@@ -173,11 +201,7 @@ for (const finding of productionFindings) {
 }
 
 for (const finding of fullFindings) {
-  if (
-    productionFindings.some(
-      (prodFinding) => prodFinding.package === finding.package,
-    )
-  ) {
+  if (productionPackages.has(finding.package)) {
     continue;
   }
 
@@ -195,11 +219,15 @@ for (const finding of fullFindings) {
 const payload = {
   generatedAt: new Date().toISOString(),
   production: {
-    metadata: productionAudit.metadata,
+    metadata: {
+      vulnerabilities: summarizeVulnerabilities(productionAudit),
+    },
     findings: productionFindings,
   },
   full: {
-    metadata: fullAudit.metadata,
+    metadata: {
+      vulnerabilities: summarizeVulnerabilities(fullAudit),
+    },
     findings: fullFindings,
   },
   blockingFindings,

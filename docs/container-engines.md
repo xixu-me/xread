@@ -34,25 +34,27 @@ These examples work unchanged with:
 - Colima with Docker context enabled
 
 ```bash
-docker run --rm -p 8081:8081 ghcr.io/xixu-me/xread:latest
-docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
-docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
+docker run --rm --publish=8081:8081 ghcr.io/xixu-me/xread:latest
+docker run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
+docker run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
 ```
+
+When you need to expose multiple ports, prefer repeating the long-form publish flag, for example `--publish=8080:8080 --publish=8081:8081`.
 
 ### Podman
 
 ```bash
-podman run --rm -p 8081:8081 ghcr.io/xixu-me/xread:latest
-podman run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
-podman run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
+podman run --rm --publish=8081:8081 ghcr.io/xixu-me/xread:latest
+podman run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
+podman run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
 ```
 
 ### nerdctl
 
 ```bash
-nerdctl run --rm -p 8081:8081 ghcr.io/xixu-me/xread:latest
-nerdctl run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
-nerdctl run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
+nerdctl run --rm --publish=8081:8081 ghcr.io/xixu-me/xread:latest
+nerdctl run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
+nerdctl run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
 ```
 
 ## Compose Commands

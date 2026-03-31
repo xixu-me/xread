@@ -24,6 +24,7 @@ import {
   ServiceCrashedError,
   ServiceNodeResourceDrainError,
 } from "../../shared/lib/errors";
+import { shouldUsePuppeteerPipeTransport } from "../../shared/utils/puppeteer-launch-options";
 import { CurlControl } from "../curl";
 import { AsyncLocalContext } from "../async-context";
 import { GlobalLogger } from "../logger";
@@ -308,7 +309,7 @@ export class SERPSpecializedPuppeteerControl extends AsyncService {
       .launch({
         timeout: 30_000,
         headless: !Boolean(process.env.DEBUG_BROWSER),
-        pipe: true,
+        pipe: shouldUsePuppeteerPipeTransport(),
         executablePath: process.env.OVERRIDE_CHROME_EXECUTABLE_PATH,
         args: getChromeLaunchArgs(),
       })

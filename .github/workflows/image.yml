@@ -28,8 +28,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
       - name: Prepare licensed assets
-        run: node ./scripts/prepare-licensed-assets.cjs
+        run: bun ./scripts/prepare-licensed-assets.cjs
 
       - name: Derive image name
         id: vars

@@ -1,12 +1,15 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 const fs = require("node:fs");
 const path = require("node:path");
 const childProcess = require("node:child_process");
+const os = require("node:os");
 
 const projectRoot = path.resolve(__dirname, "..");
 const tsconfigPath = path.join(projectRoot, "tsconfig.json");
-const bootstrapPrefix = path.join(projectRoot, ".codex-cache", "ts-compiler");
+const bootstrapRoot = path.join(projectRoot, ".codex-cache", "ts-compiler");
+const bootstrapPrefix = path.join(bootstrapRoot, "workspace");
+const bootstrapPackageJsonPath = path.join(bootstrapPrefix, "package.json");
 
 function resolveTypeScript() {
   const candidatePaths = [
@@ -21,21 +24,32 @@ function resolveTypeScript() {
   }
 
   ensureDir(bootstrapPrefix);
+  fs.writeFileSync(
+    bootstrapPackageJsonPath,
+    JSON.stringify({ name: "ts-compiler-bootstrap", private: true }, null, 2) +
+      "\n",
+  );
   const install = childProcess.spawnSync(
-    "npm",
+    "bun",
     [
       "install",
-      "--prefix",
+      "--cwd",
       bootstrapPrefix,
       "--no-save",
       "--ignore-scripts",
-      "--no-package-lock",
       "typescript@5.5.4",
     ],
     {
       cwd: projectRoot,
       stdio: "inherit",
-      shell: true,
+      shell: process.platform === "win32",
+      env: {
+        ...process.env,
+        BUN_INSTALL_CACHE_DIR: path.join(bootstrapRoot, "cache"),
+        TMPDIR: os.tmpdir(),
+        TEMP: os.tmpdir(),
+        TMP: os.tmpdir(),
+      },
     },
   );
 

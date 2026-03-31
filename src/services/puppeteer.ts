@@ -27,6 +27,7 @@ import {
   ServiceCrashedError,
   ServiceNodeResourceDrainError,
 } from "../shared/lib/errors";
+import { shouldUsePuppeteerPipeTransport } from "../shared/utils/puppeteer-launch-options";
 import { CurlControl } from "./curl";
 import { BlackHoleDetector } from "./blackhole-detector";
 import { AsyncLocalContext } from "./async-context";
@@ -596,7 +597,7 @@ export class PuppeteerControl extends AsyncService {
       .launch({
         timeout: 30_000,
         headless: !Boolean(process.env.DEBUG_BROWSER),
-        pipe: true,
+        pipe: shouldUsePuppeteerPipeTransport(),
         executablePath: process.env.OVERRIDE_CHROME_EXECUTABLE_PATH,
         args: getChromeLaunchArgs(),
       })

@@ -77,10 +77,10 @@ test("CodeQL workflow uses advanced setup with repository-managed configuration"
   assert.match(workflow, /language:\s*javascript-typescript/);
 });
 
-test("dependabot config covers npm, docker, and github-actions updates", () => {
+test("dependabot config covers Bun, Docker, and GitHub Actions updates", () => {
   const dependabot = read(".github/dependabot.yml");
 
-  assert.match(dependabot, /package-ecosystem: npm/);
+  assert.match(dependabot, /package-ecosystem: bun/);
   assert.match(dependabot, /package-ecosystem: docker/);
   assert.match(dependabot, /package-ecosystem: github-actions/);
 });
@@ -100,9 +100,11 @@ test("dependabot groups include major upgrades instead of suppressing them", () 
 test("CI workflow runs lint before tests and build", () => {
   const workflow = read(".github/workflows/ci.yml");
 
-  assert.match(workflow, /run: npm run lint/);
-  assert.match(workflow, /run: npm run test:ci/);
-  assert.match(workflow, /run: npm run build/);
+  assert.match(workflow, /oven-sh\/setup-bun@v\d+/);
+  assert.match(workflow, /run:\s+bun install --frozen-lockfile/);
+  assert.match(workflow, /run: bun run lint/);
+  assert.match(workflow, /run: bun run test:ci/);
+  assert.match(workflow, /run: bun run build/);
 });
 
 test("CI validates Docker builds for pull requests without publishing images", () => {
@@ -126,7 +128,10 @@ test("dependabot auto-merge workflow updates stale branches before enabling auto
 test("Dockerfile is self-contained and no longer relies on curl-impersonate", () => {
   const dockerfile = read("Dockerfile");
 
-  assert.match(dockerfile, /FROM node:22-bookworm-slim/);
+  assert.match(dockerfile, /FROM debian:bookworm-slim/);
+  assert.match(dockerfile, /BUN_VERSION=1\.3\.11/);
+  assert.match(dockerfile, /ENTRYPOINT \["bun"\]/);
+  assert.match(dockerfile, /CMD \["build\/stand-alone\/crawl\.js"\]/);
   assert.match(dockerfile, /PUPPETEER_SKIP_DOWNLOAD=true/);
   assert.match(dockerfile, /LOCAL_DB_ROOT=\/tmp\/xread\/db/);
   assert.match(dockerfile, /STORAGE_ROOT=\/tmp\/xread\/storage/);
