@@ -18,6 +18,7 @@ It is a standalone fork of the public [Jina AI Reader](https://jina.ai/reader) r
 
 - Self-hosted packaging around the upstream Reader repository
 - Local-first storage and cache persistence
+- Bun-first contributor tooling across local development, CI, and containers
 - OCI image published to GHCR
 - Ready-to-run reverse-proxy deployment assets with the same image, Compose stack, and environment model across Docker, Podman, and `nerdctl`
 - CI, CodeQL, dependency governance, and container publishing already wired up
@@ -49,9 +50,9 @@ curl "http://127.0.0.1:8081/?q=example%20domain&num=5&provider=google"
 ### Run locally
 
 ```bash
-npm ci
-npm run build
-npm start
+bun install --frozen-lockfile
+bun run build
+bun run start
 ```
 
 That starts the `crawl` server. The standalone services are:
@@ -63,15 +64,17 @@ That starts the `crawl` server. The standalone services are:
 ### Run with a container engine
 
 ```bash
-docker run --rm -p 8081:8081 ghcr.io/xixu-me/xread:latest
+docker run --rm --publish=8081:8081 ghcr.io/xixu-me/xread:latest
 ```
 
 The published image defaults to `crawl`. Any OCI-compatible engine can run it. The examples below use Docker syntax. To run the other entrypoints:
 
 ```bash
-docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
-docker run --rm -p 8081:8081 --entrypoint node ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
+docker run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/search.js
+docker run --rm --publish=8081:8081 --entrypoint bun ghcr.io/xixu-me/xread:latest build/stand-alone/serp.js
 ```
+
+If you need to expose more than one port from the container, prefer repeating the long-form flag, for example `--publish=8080:8080 --publish=8081:8081`.
 
 ## Built for Self-Hosting
 
@@ -138,10 +141,10 @@ Useful request controls for crawling include:
 ## Build and Verify
 
 ```bash
-npm run lint
-npm run security:audit
-npm run test:ci
-npm run build
+bun run lint
+bun run security:audit
+bun run test:ci
+bun run build
 ```
 
 The image build also dry-runs all three standalone servers.

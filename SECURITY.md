@@ -10,7 +10,7 @@ Please open a private security advisory in GitHub when possible. If that is not 
 
 ## Dependency Governance
 
-- Pull requests run `npm run security:audit`.
-- Blocking policy is based on `npm audit --omit=dev`: new runtime `high` or `critical` findings fail CI.
-- Development-only findings that are not yet practical to remove immediately must be recorded in `security/npm-audit-baseline.json` with a reason and review date.
+- Pull requests run `bun run security:audit`.
+- Blocking policy is based on `bun audit`: new runtime `high` or `critical` findings fail CI.
+- Development-only findings that are not yet practical to remove immediately must be recorded in `security/bun-audit-baseline.json` with a reason and review date.
 - Scheduled GitHub Actions runs refresh the audit report and upload artifacts under `security-reports/`.

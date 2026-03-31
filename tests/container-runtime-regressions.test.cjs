@@ -12,12 +12,19 @@ function readProjectFile(relativePath) {
 test("browser launchers include container-safe Chrome sandbox flags", () => {
   const mainPuppeteer = readProjectFile("src/services/puppeteer.ts");
   const serpPuppeteer = readProjectFile("src/services/serp/puppeteer.ts");
+  const launchOptions = readProjectFile(
+    "src/shared/utils/puppeteer-launch-options.ts",
+  );
 
   for (const source of [mainPuppeteer, serpPuppeteer]) {
-    assert.match(source, /pipe:\s*true/);
+    assert.match(source, /pipe:\s*shouldUsePuppeteerPipeTransport\(\)/);
     assert.match(source, /--no-sandbox/);
     assert.match(source, /--disable-setuid-sandbox/);
   }
+
+  assert.match(launchOptions, /process\.platform === "win32"/);
+  assert.match(launchOptions, /process\.versions\.bun/);
+  assert.match(launchOptions, /return !\(/);
 });
 
 test("SERP puppeteer control uses an absolute control timeout instead of a fixed post-navigation race", () => {
