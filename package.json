@@ -39,6 +39,7 @@
     "koa-compress": "^5.2.1",
     "langdetect": "^0.2.1",
     "linkedom": "^0.18.12",
+    "lodash": "^4.18.1",
     "lru-cache": "^11.2.7",
     "maxmind": "^4.3.29",
     "minio": "^8.0.7",

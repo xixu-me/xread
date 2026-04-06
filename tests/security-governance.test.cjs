@@ -44,3 +44,14 @@ test("security baseline file is present and ready for future exceptions", () => 
   assert.ok(Array.isArray(baseline.entries));
   assert.equal(baseline.entries.length, 0);
 });
+
+test("lodash is declared directly and lockfile avoids the vulnerable 4.17.23 release", () => {
+  const packageJson = JSON.parse(read("package.json"));
+  const packageLock = read("package-lock.json");
+
+  assert.equal(packageJson.dependencies.lodash, "^4.18.1");
+  assert.doesNotMatch(
+    packageLock,
+    /"node_modules\/lodash":\s*\{[\s\S]*?"version":\s*"4\.17\.23"/,
+  );
+});
