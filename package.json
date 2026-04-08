@@ -85,7 +85,7 @@
     "minimatch": "^3.1.5",
     "minio": "^8.0.7",
     "fast-xml-parser": "^5.5.9",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^8.0.5",
     "smtp-server": "^3.18.3",
     "readdir-glob": {
       "minimatch": "^5.1.9"
