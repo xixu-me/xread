@@ -9,6 +9,23 @@ function read(relativePath) {
   return fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
 }
 
+function compareVersions(left, right) {
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const leftValue = leftParts[index] ?? 0;
+    const rightValue = rightParts[index] ?? 0;
+
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  return 0;
+}
+
 test("package.json exposes the security audit script and excludes removed cloud dependencies", () => {
   const packageJson = JSON.parse(read("package.json"));
 
@@ -53,5 +70,27 @@ test("lodash is declared directly and lockfile avoids the vulnerable 4.17.23 rel
   assert.doesNotMatch(
     packageLock,
     /"node_modules\/lodash":\s*\{[\s\S]*?"version":\s*"4\.17\.23"/,
+  );
+});
+
+test("security-sensitive dependency floors stay above blocked axios and basic-ftp releases", () => {
+  const packageJson = JSON.parse(read("package.json"));
+  const packageLock = JSON.parse(read("package-lock.json"));
+  const axiosRange = packageJson.dependencies.axios.replace(/^[^\d]*/, "");
+  const lockedAxiosVersion = packageLock.packages["node_modules/axios"].version;
+  const lockedBasicFtpVersion =
+    packageLock.packages["node_modules/basic-ftp"].version;
+
+  assert.ok(
+    compareVersions(axiosRange, "1.15.0") >= 0,
+    `Expected axios floor >= 1.15.0, received ${packageJson.dependencies.axios}`,
+  );
+  assert.doesNotMatch(
+    lockedAxiosVersion,
+    /^1\.14\.0$/,
+  );
+  assert.ok(
+    compareVersions(lockedBasicFtpVersion, "5.2.2") >= 0,
+    `Expected basic-ftp lock >= 5.2.2, received ${lockedBasicFtpVersion}`,
   );
 });
