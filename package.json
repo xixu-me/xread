@@ -27,14 +27,14 @@
     "@types/turndown": "^5.0.6",
     "@xmldom/xmldom": "^0.9.10",
     "archiver": "^7.0.1",
-    "axios": "^1.15.2",
+    "axios": "^1.16.0",
     "bcrypt": "^6.0.0",
     "busboy": "^1.6.0",
     "civkit": "^0.9.1-a38f565",
     "cors": "^2.8.6",
     "dayjs": "^1.11.20",
     "htmlparser2": "^9.0.0",
-    "jose": "^6.2.2",
+    "jose": "^6.2.3",
     "koa": "^2.16.4",
     "koa-compress": "^5.2.1",
     "langdetect": "^0.2.1",
@@ -56,7 +56,7 @@
     "tld-extract": "^2.1.0",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^8.1.0"
+    "undici": "^8.2.0"
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
