@@ -30,7 +30,7 @@
     "axios": "^1.16.1",
     "bcrypt": "^6.0.0",
     "busboy": "^1.6.0",
-    "civkit": "^0.10.0-ca17c8a",
+    "civkit": "^0.10.0-7e6bf49",
     "cors": "^2.8.6",
     "dayjs": "^1.11.20",
     "htmlparser2": "^9.0.0",
