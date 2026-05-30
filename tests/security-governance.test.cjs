@@ -94,3 +94,12 @@ test("security-sensitive dependency floors stay above blocked axios and basic-ft
     `Expected basic-ftp lock >= 5.2.2, received ${lockedBasicFtpVersion}`,
   );
 });
+
+test("Node runtime policy supports the yargs override required by Puppeteer", () => {
+  const packageJson = JSON.parse(read("package.json"));
+  const packageLock = JSON.parse(read("package-lock.json"));
+
+  assert.equal(packageJson.engines.node, ">=22.12.0");
+  assert.equal(packageJson.overrides.yargs, "^18.0.0");
+  assert.equal(packageLock.packages["node_modules/yargs"].version, "18.0.0");
+});
