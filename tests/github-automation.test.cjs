@@ -105,6 +105,18 @@ test("CI workflow runs lint before tests and build", () => {
   assert.match(workflow, /run: npm run build/);
 });
 
+test("npm-based workflows use the same Node runtime as the container image", () => {
+  const workflows = [
+    read(".github/workflows/ci.yml"),
+    read(".github/workflows/security-governance.yml"),
+  ];
+
+  for (const workflow of workflows) {
+    assert.match(workflow, /node-version:\s*26/);
+    assert.doesNotMatch(workflow, /node-version:\s*22/);
+  }
+});
+
 test("CI validates Docker builds for pull requests without publishing images", () => {
   const workflow = read(".github/workflows/ci.yml");
 
@@ -126,7 +138,7 @@ test("dependabot auto-merge workflow updates stale branches before enabling auto
 test("Dockerfile is self-contained and no longer relies on curl-impersonate", () => {
   const dockerfile = read("Dockerfile");
 
-  assert.match(dockerfile, /FROM node:22-bookworm-slim/);
+  assert.match(dockerfile, /FROM node:26-bookworm-slim/);
   assert.match(dockerfile, /PUPPETEER_SKIP_DOWNLOAD=true/);
   assert.match(dockerfile, /LOCAL_DB_ROOT=\/tmp\/xread\/db/);
   assert.match(dockerfile, /STORAGE_ROOT=\/tmp\/xread\/storage/);
