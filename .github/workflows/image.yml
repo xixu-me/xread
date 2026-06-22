@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare licensed assets
         run: node ./scripts/prepare-licensed-assets.cjs
