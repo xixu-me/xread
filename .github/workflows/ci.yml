@@ -29,7 +29,7 @@ jobs:
       PUPPETEER_SKIP_DOWNLOAD: true
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -67,7 +67,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Prepare licensed assets
         run: node ./scripts/prepare-licensed-assets.cjs
@@ -76,7 +76,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build container image without publishing
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: .
           push: false
