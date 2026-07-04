@@ -28,6 +28,7 @@ env:
 jobs:
   merge:
     name: Auto-merge Dependabot PRs
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'dependabot/'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -39,13 +40,13 @@ jobs:
           set -euo pipefail
 
           if [ -n "$HEAD_BRANCH" ]; then
-            pr_numbers="$(gh pr list --state open --author "dependabot[bot]" --head "$HEAD_BRANCH" --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "BEHIND") | .number')"
+            pr_numbers="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --author "dependabot[bot]" --head "$HEAD_BRANCH" --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "BEHIND") | .number')"
           else
-            pr_numbers="$(gh pr list --state open --author "dependabot[bot]" --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "BEHIND") | .number')"
+            pr_numbers="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --author "dependabot[bot]" --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "BEHIND") | .number')"
           fi
 
           for pr_number in $pr_numbers; do
-            gh pr update-branch "$pr_number" || true
+            gh pr update-branch --repo "$GITHUB_REPOSITORY" "$pr_number" || true
           done
 
       - name: Merge Dependabot PRs when checks pass
@@ -75,7 +76,12 @@ jobs:
 
             const findCandidatePulls = async () => {
               const branch = context.payload.workflow_run?.head_branch;
-              if (context.eventName === "workflow_run" && branch) {
+              if (context.eventName === "workflow_run") {
+                if (!String(branch || "").startsWith("dependabot/")) {
+                  core.info("Workflow run was for " + (branch || "an unknown branch") + "; skipping non-Dependabot branch.");
+                  return [];
+                }
+
                 const { data: pulls } = await github.rest.pulls.list({
                   owner,
                   repo,
