@@ -3,11 +3,11 @@ name: Dependabot Auto Merge
 on:
   workflow_run:
     workflows:
-      - "CI"
-      - "CodeQL"
-      - "Container Image"
-      - "Dependabot Updates"
-      - "Security Governance"
+      - CI
+      - CodeQL
+      - Container Image
+      - Dependabot Updates
+      - Security Governance
     types:
       - completed
   workflow_dispatch:
@@ -22,12 +22,32 @@ permissions:
   checks: read
   statuses: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   merge:
     name: Auto-merge Dependabot PRs
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Update stale Dependabot branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$HEAD_BRANCH" ]; then
+            pr_numbers="$(gh pr list --state open --author "dependabot[bot]" --head "$HEAD_BRANCH" --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "BEHIND") | .number')"
+          else
+            pr_numbers="$(gh pr list --state open --author "dependabot[bot]" --json number,mergeStateStatus --jq '.[] | select(.mergeStateStatus == "BEHIND") | .number')"
+          fi
+
+          for pr_number in $pr_numbers; do
+            gh pr update-branch "$pr_number" || true
+          done
+
       - name: Merge Dependabot PRs when checks pass
         uses: actions/github-script@v9
         with:

@@ -85,8 +85,10 @@
     "minimatch": "^3.1.5",
     "minio": "^8.0.7",
     "fast-xml-parser": "^5.7.1",
-    "nodemailer": "^8.0.5",
-    "smtp-server": "^3.18.3",
+    "form-data": "^4.0.6",
+    "js-yaml": "^4.2.0",
+    "nodemailer": "^9.0.3",
+    "smtp-server": "^3.19.1",
     "readdir-glob": {
       "minimatch": "^5.1.9"
     },
