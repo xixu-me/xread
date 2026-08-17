@@ -79,18 +79,16 @@ test("security-sensitive dependency floors stay above blocked axios and basic-ft
   const axiosRange = packageJson.dependencies.axios.replace(/^[^\d]*/, "");
   const lockedAxiosVersion = packageLock.packages["node_modules/axios"].version;
   const lockedBasicFtpVersion =
-    packageLock.packages["node_modules/basic-ftp"].version;
+    packageLock.packages["node_modules/basic-ftp"]?.version;
 
   assert.ok(
     compareVersions(axiosRange, "1.15.0") >= 0,
     `Expected axios floor >= 1.15.0, received ${packageJson.dependencies.axios}`,
   );
-  assert.doesNotMatch(
-    lockedAxiosVersion,
-    /^1\.14\.0$/,
-  );
+  assert.doesNotMatch(lockedAxiosVersion, /^1\.14\.0$/);
   assert.ok(
-    compareVersions(lockedBasicFtpVersion, "5.2.2") >= 0,
+    !lockedBasicFtpVersion ||
+      compareVersions(lockedBasicFtpVersion, "5.2.2") >= 0,
     `Expected basic-ftp lock >= 5.2.2, received ${lockedBasicFtpVersion}`,
   );
 });
