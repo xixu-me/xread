@@ -9,9 +9,13 @@ import type {
   GoToOptions,
   Page,
   Viewport,
-} from "puppeteer";
+} from "puppeteer" with { "resolution-mode": "import" };
 import type { Cookie } from "set-cookie-parser";
-import puppeteer, { TimeoutError } from "puppeteer";
+
+const { default: puppeteer, TimeoutError } =
+  require("puppeteer") as typeof import("puppeteer", {
+    with: { "resolution-mode": "import" },
+  });
 
 import { Defer } from "civkit/defer";
 import { AssertionFailureError, ParamValidationError } from "civkit/civ-rpc";
