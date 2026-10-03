@@ -27,7 +27,7 @@
     "@types/turndown": "^5.0.6",
     "@xmldom/xmldom": "^0.9.12",
     "archiver": "^8.0.0",
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
     "bcrypt": "^6.0.0",
     "busboy": "^1.6.0",
     "civkit": "^0.10.0-8468672",
@@ -100,7 +100,8 @@
     "undici": "^8.10.2",
     "stream-json": "^3.5.0",
     "decode-uri-component": "^0.5.0",
-    "@humanfs/node": "^0.16.8"
+    "@humanfs/node": "^0.16.8",
+    "brace-expansion": "^5.0.12"
   },
   "private": true,
   "exports": {
