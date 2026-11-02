@@ -44,7 +44,7 @@
     "maxmind": "^4.3.29",
     "minio": "^8.0.7",
     "pdfjs-dist": "^4.10.38",
-    "puppeteer": "^25.7.0",
+    "puppeteer": "^25.16.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-block-resources": "^2.4.3",
     "robots-parser": "^3.0.1",
@@ -56,7 +56,7 @@
     "tld-extract": "^2.1.0",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2",
-    "undici": "^8.10.2"
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",
@@ -79,8 +79,8 @@
   "overrides": {
     "ajv": "^6.14.0",
     "express": "^4.22.1",
-    "body-parser": "^1.20.4",
-    "qs": "^6.16.0",
+    "body-parser": "^1.20.9",
+    "qs": "^6.17.1",
     "path-to-regexp": "^0.1.13",
     "minimatch": {
       "brace-expansion": "^1.1.21"
@@ -89,7 +89,7 @@
     "fast-xml-parser": "^5.7.1",
     "form-data": "^4.0.6",
     "js-yaml": "^4.3.2",
-    "nodemailer": "^10.0.2",
+    "nodemailer": "^10.3.1",
     "smtp-server": "^3.19.1",
     "readdir-glob": {
       "minimatch": "^5.1.9"
@@ -99,11 +99,13 @@
       "brace-expansion": "5.0.12"
     },
     "yargs": "^18.0.0",
-    "undici": "^8.10.2",
+    "undici": "^8.12.3",
     "stream-json": "^3.5.0",
-    "decode-uri-component": "^0.5.0",
+    "decode-uri-component": "^0.5.1",
     "@humanfs/node": "^0.16.8",
-    "brace-expansion": "5.0.12"
+    "brace-expansion": "5.0.12",
+    "zod": "^4.6.7",
+    "follow-redirects": "^1.16.2"
   },
   "private": true,
   "exports": {
